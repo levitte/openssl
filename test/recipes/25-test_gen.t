@@ -1,0 +1,48 @@
+#! /usr/bin/perl
+
+use strict;
+use warnings;
+
+use File::Spec;
+use Test::More;
+use lib 'testlib';
+use OpenSSL::Test qw/setup run app/;
+
+$ENV{OPENSSL_CONF} = File::Spec->devnull();
+
+setup("test_gen");
+
+plan tests => 1;
+
+my $T = "testcert";
+my $KEY = 512;
+my $CA = File::Spec->catfile("..", "certs", "testca.pem");
+
+unlink "$T.1", "$T.2", "$T.key";
+open RND, ">>", ".rnd";
+print RND "string to make the random number generator think it has entropy";
+close RND;
+
+subtest "generating certificate requests" => sub {
+    my @req_new;
+    if (run(app(["openssl", "no-rsa"], stdout => undef))) {
+	@req_new = ("-newkey",
+		    "dsa:".File::Spec->catfile("..", "apps", "dsa512.pem"));
+    } else {
+	@req_new = ("-new");
+	note("There should be a 2 sequences of .'s and some +'s.");
+	note("There should not be more that at most 80 per line");
+    }
+
+    unlink "testkey.pem", "testreq.pem";
+
+    plan tests => 2;
+
+    ok(run(app(["openssl", "req", "-config", "test.cnf",
+		@req_new, "-out", "testreq.pem"])),
+       "Generating request");
+
+    ok(run(app(["openssl", "req", "-config", "test.cnf",
+		"-verify", "-in", "testreq.pem", "-noout"])),
+       "Verifying signature on request");
+};
