@@ -26,6 +26,7 @@
 /test/.rnd
 /test/test*.pem
 /test/newkey.pem
+/test/*.log
 
 # Certificate symbolic links
 *.0
