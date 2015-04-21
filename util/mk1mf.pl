@@ -396,8 +396,15 @@ for (;;)
 	if ($key eq "EX_LIBS")
 		{ $ex_libs .= " $val" if $val ne "";}
 
-	if ($key =~ /^[A-Z0-9_]*TEST$/ && (!$fipscanisteronly || $dir =~ /^fips/ ))
-		{ $test.=&var_add($dir,$val, 0); }
+	# There was a condition here before:
+	#	!$fipscanisteronly || $dir =~ /^fips/
+	# It currently fills no function and needs to be rewritten anyway, so
+	# removed for now.
+	if ($dir eq "test" && $key eq "EXE")
+		{
+		    foreach my $t (split /\s+/, $val) {
+			$test.=&var_add($dir,$t, 0) if $t; }
+		}
 
 	if (($key eq "PROGS") || ($key eq "E_OBJ"))
 		{ $e_exe.=&var_add($dir,$val, 0); }
@@ -779,15 +786,7 @@ reallyclean:
 
 EOF
 
-if ($orig_platform ne 'copy')
-	{
-        $rules .= <<"EOF";
-test: \$(T_EXE)
-	cd \$(BIN_D)
-	..${o}ms${o}test
-
-EOF
-	}
+$rules .= &do_test_rule("test", "exe", "run_tests.pl");
 
 my $platform_cpp_symbol = "MK1MF_PLATFORM_$platform";
 $platform_cpp_symbol =~ s/-/_/g;
@@ -1005,8 +1004,6 @@ if ($fips)
 	}
 
 $rules.=&do_link_rule("\$(BIN_D)$o\$(E_EXE)$exep","\$(E_OBJ)","\$(LIBS_DEP)","\$(L_LIBS) \$(EX_LIBS)", ($fips && !$shlib) ? 2 : 0);
-
-$rules .= get_tests('test/Makefile') if $orig_platform eq 'copy';
 
 print $defs;
 
