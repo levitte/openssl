@@ -21,6 +21,8 @@
 /* obj_dat.h is generated from objects.h by obj_dat.pl */
 #include "obj_dat.h"
 
+#if !defined(FIPS_MODE)
+
 DECLARE_OBJ_BSEARCH_CMP_FN(const ASN1_OBJECT *, unsigned int, sn);
 DECLARE_OBJ_BSEARCH_CMP_FN(const ASN1_OBJECT *, unsigned int, ln);
 DECLARE_OBJ_BSEARCH_CMP_FN(const ASN1_OBJECT *, unsigned int, obj);
@@ -578,6 +580,8 @@ int OBJ_sn2nid(const char *s)
         return NID_undef;
     return nid_objs[*op].nid;
 }
+#endif /* !defined(FIPS_MODE) */
+
 
 const void *OBJ_bsearch_(const void *key, const void *base, int num, int size,
                          int (*cmp) (const void *, const void *))
@@ -634,6 +638,7 @@ const void *OBJ_bsearch_ex_(const void *key, const void *base_, int num,
     return p;
 }
 
+#if !defined(FIPS_MODE)
 /*
  * Parse a BIO sink to create some extra oid's objects.
  * Line format:<OID:isdigit or '.']><isspace><SN><isspace><LN>
@@ -737,3 +742,4 @@ const unsigned char *OBJ_get0_data(const ASN1_OBJECT *obj)
         return NULL;
     return obj->data;
 }
+#endif /* !defined(FIPS_MODE) */
