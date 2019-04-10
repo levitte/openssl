@@ -3,4 +3,4 @@ SOURCE[../../libcrypto]=\
         o_names.c obj_dat.c obj_lib.c obj_err.c obj_xref.c
 
 SOURCE[../../providers/fips]=\
-        obj_dat.c
+        obj_dat.c obj_lib.c

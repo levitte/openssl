@@ -18,6 +18,7 @@
 #include "internal/asn1_int.h"
 #include "asn1_locl.h"
 
+#if !defined(FIPS_MODE)
 int i2d_ASN1_OBJECT(const ASN1_OBJECT *a, unsigned char **pp)
 {
     unsigned char *p, *allocated = NULL;
@@ -331,6 +332,7 @@ ASN1_OBJECT *c2i_ASN1_OBJECT(ASN1_OBJECT **a, const unsigned char **pp,
         ASN1_OBJECT_free(ret);
     return NULL;
 }
+#endif /* !defined(FIPS_MODE) */
 
 ASN1_OBJECT *ASN1_OBJECT_new(void)
 {
@@ -367,6 +369,7 @@ void ASN1_OBJECT_free(ASN1_OBJECT *a)
         OPENSSL_free(a);
 }
 
+#if !defined(FIPS_MODE)
 ASN1_OBJECT *ASN1_OBJECT_create(int nid, unsigned char *data, int len,
                                 const char *sn, const char *ln)
 {
@@ -381,3 +384,4 @@ ASN1_OBJECT *ASN1_OBJECT_create(int nid, unsigned char *data, int len,
         ASN1_OBJECT_FLAG_DYNAMIC_DATA;
     return OBJ_dup(&o);
 }
+#endif

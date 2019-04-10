@@ -21,11 +21,12 @@
 /* obj_dat.h is generated from objects.h by obj_dat.pl */
 #include "obj_dat.h"
 
-#if !defined(FIPS_MODE)
-
 DECLARE_OBJ_BSEARCH_CMP_FN(const ASN1_OBJECT *, unsigned int, sn);
+
+#if !defined(FIPS_MODE)
 DECLARE_OBJ_BSEARCH_CMP_FN(const ASN1_OBJECT *, unsigned int, ln);
 DECLARE_OBJ_BSEARCH_CMP_FN(const ASN1_OBJECT *, unsigned int, obj);
+#endif /* !defined(FIPS_MODE) */
 
 #define ADDED_DATA      0
 #define ADDED_SNAME     1
@@ -47,12 +48,15 @@ static int sn_cmp(const ASN1_OBJECT *const *a, const unsigned int *b)
 
 IMPLEMENT_OBJ_BSEARCH_CMP_FN(const ASN1_OBJECT *, unsigned int, sn);
 
+#if !defined(FIPS_MODE)
+
 static int ln_cmp(const ASN1_OBJECT *const *a, const unsigned int *b)
 {
     return strcmp((*a)->ln, nid_objs[*b].ln);
 }
 
 IMPLEMENT_OBJ_BSEARCH_CMP_FN(const ASN1_OBJECT *, unsigned int, ln);
+#endif /* !defined(FIPS_MODE) */
 
 static unsigned long added_obj_hash(const ADDED_OBJ *ca)
 {
@@ -272,6 +276,8 @@ const char *OBJ_nid2sn(int n)
         }
     }
 }
+
+#if !defined(FIPS_MODE)
 
 const char *OBJ_nid2ln(int n)
 {
@@ -560,6 +566,8 @@ int OBJ_ln2nid(const char *s)
     return nid_objs[*op].nid;
 }
 
+#endif /* !defined(FIPS_MODE) */
+
 int OBJ_sn2nid(const char *s)
 {
     ASN1_OBJECT o;
@@ -580,8 +588,6 @@ int OBJ_sn2nid(const char *s)
         return NID_undef;
     return nid_objs[*op].nid;
 }
-#endif /* !defined(FIPS_MODE) */
-
 
 const void *OBJ_bsearch_(const void *key, const void *base, int num, int size,
                          int (*cmp) (const void *, const void *))
@@ -735,6 +741,7 @@ size_t OBJ_length(const ASN1_OBJECT *obj)
         return 0;
     return obj->length;
 }
+#endif /* !defined(FIPS_MODE) */
 
 const unsigned char *OBJ_get0_data(const ASN1_OBJECT *obj)
 {
@@ -742,4 +749,3 @@ const unsigned char *OBJ_get0_data(const ASN1_OBJECT *obj)
         return NULL;
     return obj->data;
 }
-#endif /* !defined(FIPS_MODE) */
