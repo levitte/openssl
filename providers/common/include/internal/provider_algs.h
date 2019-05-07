@@ -58,6 +58,10 @@ extern const OSSL_DISPATCH aes256ctr_functions[];
 extern const OSSL_DISPATCH aes192ctr_functions[];
 extern const OSSL_DISPATCH aes128ctr_functions[];
 
+/* MACs */
+extern const OSSL_DISPATCH blake2bmac_functions[];
+extern const OSSL_DISPATCH blake2smac_functions[];
+
 /* Key management */
 extern const OSSL_DISPATCH dh_keymgmt_functions[];
 
