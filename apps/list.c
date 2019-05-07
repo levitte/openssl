@@ -127,6 +127,7 @@ static void list_digests(void)
     sk_EVP_MD_pop_free(digests, EVP_MD_meth_free);
 }
 
+#if 0                            /* Temporarly disabled */
 static void list_mac_fn(const EVP_MAC *m,
                         const char *from, const char *to, void *arg)
 {
@@ -140,6 +141,7 @@ static void list_mac_fn(const EVP_MAC *m,
         BIO_printf(arg, "%s => %s\n", from, to);
     }
 }
+#endif
 
 static void list_missing_help(void)
 {
@@ -538,7 +540,9 @@ opthelp:
             list_digests();
             break;
         case OPT_MAC_ALGORITHMS:
+#if 0                            /* Temporarly disabled */
             EVP_MAC_do_all_sorted(list_mac_fn, bio_out);
+#endif
             break;
         case OPT_CIPHER_COMMANDS:
             list_type(FT_cipher, one);
