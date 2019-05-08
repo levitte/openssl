@@ -149,6 +149,7 @@ int EVP_CIPHER_set_asn1_iv(EVP_CIPHER_CTX *c, ASN1_TYPE *type)
 }
 #endif /* !defined(FIPS_MODE) */
 
+#ifndef FIPS_MODE
 /* Convert the various cipher NIDs and dummies to a proper OID NID */
 int EVP_CIPHER_type(const EVP_CIPHER *ctx)
 {
@@ -208,6 +209,7 @@ int EVP_CIPHER_type(const EVP_CIPHER *ctx)
         return nid;
     }
 }
+#endif
 
 int EVP_CIPHER_block_size(const EVP_CIPHER *cipher)
 {
@@ -356,6 +358,7 @@ int EVP_CIPHER_CTX_key_length(const EVP_CIPHER_CTX *ctx)
     return ctx->key_len;
 }
 
+#if !defined(FIPS_MODE)
 int EVP_CIPHER_nid(const EVP_CIPHER *cipher)
 {
     return cipher->nid;
@@ -365,6 +368,7 @@ int EVP_CIPHER_CTX_nid(const EVP_CIPHER_CTX *ctx)
 {
     return ctx->cipher->nid;
 }
+#endif
 
 int EVP_CIPHER_mode(const EVP_CIPHER *cipher)
 {

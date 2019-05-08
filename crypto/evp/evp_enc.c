@@ -85,7 +85,9 @@ int EVP_CipherInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
 #if !defined(OPENSSL_NO_ENGINE) && !defined(FIPS_MODE)
     ENGINE *tmpimpl = NULL;
 #endif
+#ifndef FIPS_MODE
     const EVP_CIPHER *tmpcipher;
+#endif
 
     /*
      * enc == 1 means we are encrypting.
@@ -124,6 +126,7 @@ int EVP_CipherInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
     }
 #endif
 
+#ifndef FIPS_MODE
     /*
      * If there are engines involved then we should use legacy handling for now.
      */
@@ -169,6 +172,7 @@ int EVP_CipherInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
             goto legacy;
         }
     }
+#endif
 
     /*
      * Ensure a context left lying around from last time is cleared
@@ -198,7 +202,9 @@ int EVP_CipherInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
         cipher = ctx->cipher;
 
     if (cipher->prov == NULL) {
+#ifndef FIPS_MODE
         provciph = EVP_CIPHER_fetch(NULL, OBJ_nid2sn(cipher->nid), "");
+#endif
         if (provciph == NULL) {
             EVPerr(EVP_F_EVP_CIPHERINIT_EX, EVP_R_INITIALIZATION_ERROR);
             return 0;
@@ -267,6 +273,7 @@ int EVP_CipherInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
                               iv == NULL ? 0
                                          : EVP_CIPHER_CTX_iv_length(ctx));
 
+#ifndef FIPS_MODE
     /* TODO(3.0): Remove legacy code below */
  legacy:
 
@@ -395,6 +402,7 @@ int EVP_CipherInit_ex(EVP_CIPHER_CTX *ctx, const EVP_CIPHER *cipher,
     ctx->final_used = 0;
     ctx->block_mask = ctx->cipher->block_size - 1;
     return 1;
+#endif
 }
 
 int EVP_CipherUpdate(EVP_CIPHER_CTX *ctx, unsigned char *out, int *outl,

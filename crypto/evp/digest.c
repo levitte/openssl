@@ -106,7 +106,7 @@ int EVP_DigestInit(EVP_MD_CTX *ctx, const EVP_MD *type)
 
 int EVP_DigestInit_ex(EVP_MD_CTX *ctx, const EVP_MD *type, ENGINE *impl)
 {
-    EVP_MD *provmd;
+    EVP_MD *provmd = NULL;
 #if !defined(OPENSSL_NO_ENGINE) && !defined(FIPS_MODE)
     ENGINE *tmpimpl = NULL;
 #endif
@@ -132,6 +132,7 @@ int EVP_DigestInit_ex(EVP_MD_CTX *ctx, const EVP_MD *type, ENGINE *impl)
         tmpimpl = ENGINE_get_digest_engine(type->type);
 #endif
 
+#ifndef FIPS_MODE
     /*
      * If there are engines involved or if we're being used as part of
      * EVP_DigestSignInit then we should use legacy handling for now.
@@ -150,6 +151,7 @@ int EVP_DigestInit_ex(EVP_MD_CTX *ctx, const EVP_MD *type, ENGINE *impl)
         goto legacy;
     }
 
+
     if (type->prov == NULL) {
         switch(type->type) {
         case NID_sha256:
@@ -159,6 +161,7 @@ int EVP_DigestInit_ex(EVP_MD_CTX *ctx, const EVP_MD *type, ENGINE *impl)
             goto legacy;
         }
     }
+#endif
 
     if (ctx->digest != NULL && ctx->digest->ctx_size > 0) {
         OPENSSL_clear_free(ctx->md_data, ctx->digest->ctx_size);
@@ -168,7 +171,9 @@ int EVP_DigestInit_ex(EVP_MD_CTX *ctx, const EVP_MD *type, ENGINE *impl)
     /* TODO(3.0): Start of non-legacy code below */
 
     if (type->prov == NULL) {
+#ifndef FIPS_MODE
         provmd = EVP_MD_fetch(NULL, OBJ_nid2sn(type->type), "");
+#endif
         if (provmd == NULL) {
             EVPerr(EVP_F_EVP_DIGESTINIT_EX, EVP_R_INITIALIZATION_ERROR);
             return 0;
@@ -194,6 +199,7 @@ int EVP_DigestInit_ex(EVP_MD_CTX *ctx, const EVP_MD *type, ENGINE *impl)
 
     return ctx->digest->dinit(ctx->provctx);
 
+#ifndef FIPS_MODE
     /* TODO(3.0): Remove legacy code below */
  legacy:
 
@@ -271,6 +277,8 @@ int EVP_DigestInit_ex(EVP_MD_CTX *ctx, const EVP_MD *type, ENGINE *impl)
     if (ctx->flags & EVP_MD_CTX_FLAG_NO_INIT)
         return 1;
     return ctx->digest->init(ctx);
+#endif
+
 }
 
 int EVP_DigestUpdate(EVP_MD_CTX *ctx, const void *data, size_t count)
