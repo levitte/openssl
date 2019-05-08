@@ -11,7 +11,8 @@ LIBS=../libcrypto
 # The Core
 SOURCE[../libcrypto]=provider_core.c provider_predefined.c provider_conf.c \
         core_fetch.c
-SOURCE[../providers/fips]=provider_core.c provider_predefined.c core_fetch.c
+SOURCE[../providers/fips]=provider_core.c provider_predefined.c core_fetch.c \
+        core_namemap.c
 
 # Central utilities
 SOURCE[../libcrypto]=\
