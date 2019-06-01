@@ -255,6 +255,7 @@ static const OSSL_ALGORITHM fips_ciphers[] = {
 
 static const OSSL_ALGORITHM fips_macs[] = {
     { "GMAC", "default=yes", gmac_functions },
+    { "HMAC", "default=yes", hmac_functions },
     { NULL, NULL, NULL }
 };
 
