@@ -1,3 +1,9 @@
 LIBS=../../../libcrypto
-SOURCE[../../../libcrypto]=blake2b_mac.c blake2s_mac.c cmac.c
+SOURCE[../../../libcrypto]=gmac_prov.c
 INCLUDE[../../../libcrypto]=. ../../../crypto
+
+IF[{- !$disabled{fips} -}]
+  MODULES=../../fips
+  SOURCE[../../fips]=gmac_prov.c
+  INCLUDE[../../fips]=. ../../../crypto
+ENDIF

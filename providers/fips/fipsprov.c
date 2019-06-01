@@ -253,6 +253,11 @@ static const OSSL_ALGORITHM fips_ciphers[] = {
     { NULL, NULL, NULL }
 };
 
+static const OSSL_ALGORITHM fips_macs[] = {
+    { "GMAC", "default=yes", gmac_functions },
+    { NULL, NULL, NULL }
+};
+
 static const OSSL_ALGORITHM *fips_query(OSSL_PROVIDER *prov,
                                          int operation_id,
                                          int *no_cache)
@@ -263,6 +268,8 @@ static const OSSL_ALGORITHM *fips_query(OSSL_PROVIDER *prov,
         return fips_digests;
     case OSSL_OP_CIPHER:
         return fips_ciphers;
+    case OSSL_OP_MAC:
+        return fips_macs;
     }
     return NULL;
 }
