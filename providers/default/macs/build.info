@@ -1,3 +1,4 @@
 LIBS=../../../libcrypto
-SOURCE[../../../libcrypto]=blake2b_mac.c blake2s_mac.c cmac_prov.c kmac_prov.c
+SOURCE[../../../libcrypto]=blake2b_mac.c blake2s_mac.c cmac_prov.c kmac_prov.c \
+        siphash_prov.c
 INCLUDE[../../../libcrypto]=. ../../../crypto
