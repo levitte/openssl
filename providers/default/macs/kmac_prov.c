@@ -47,9 +47,38 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
+#include <openssl/core_numbers.h>
+#include <openssl/core_names.h>
+#include <openssl/params.h>
 #include <openssl/evp.h>
-#include "internal/cryptlib.h"
+#include <openssl/err.h>
+
+#include "internal/providercommonerr.h"
+#include "internal/provider_algs.h"
+
+/*
+ * TODO(3.0) this is to get the declarations of evp_keccak_kmac128() and
+ * evp_keccak_kmac256().  I suspect that when the SHA3 EVP backend gets
+ * moved to providers, this inclusion will look different.
+ */
 #include "internal/evp_int.h"
+
+/*
+ * Forward declaration of everything implemented here.  This is not strictly
+ * necessary for the compiler, but provides an assurance that the signatures
+ * of the functions in the dispatch table are correct.
+ */
+static OSSL_OP_mac_newctx_fn kmac128_new;
+static OSSL_OP_mac_newctx_fn kmac256_new;
+static OSSL_OP_mac_dupctx_fn kmac_dup;
+static OSSL_OP_mac_freectx_fn kmac_free;
+static OSSL_OP_mac_ctx_set_param_types_fn kmac_set_param_types;
+static OSSL_OP_mac_ctx_set_params_fn kmac_set_params;
+static OSSL_OP_mac_size_fn kmac_size;
+static OSSL_OP_mac_init_fn kmac_init;
+static OSSL_OP_mac_update_fn kmac_update;
+static OSSL_OP_mac_final_fn kmac_final;
 
 #define KMAC_MAX_BLOCKSIZE ((1600 - 128*2) / 8) /* 168 */
 #define KMAC_MIN_BLOCKSIZE ((1600 - 256*2) / 8) /* 136 */
@@ -85,8 +114,8 @@ static const unsigned char kmac_string[] = {
 
 #define KMAC_FLAG_XOF_MODE          1
 
-/* typedef EVP_MAC_IMPL */
-struct evp_mac_impl_st {
+struct kmac_data_st {
+    void  *provctx;
     EVP_MD_CTX *ctx;
     const EVP_MD *md;
     size_t out_len;
@@ -109,12 +138,11 @@ static int bytepad(unsigned char *out, int *out_len,
 static int kmac_bytepad_encode_key(unsigned char *out, int *out_len,
                                    const unsigned char *in, int in_len,
                                    int w);
-static int kmac_ctrl_str(EVP_MAC_IMPL *kctx, const char *type,
-                         const char *value);
 
-
-static void kmac_free(EVP_MAC_IMPL *kctx)
+static void kmac_free(void *vmacctx)
 {
+    struct kmac_data_st *kctx = vmacctx;
+
     if (kctx != NULL) {
         EVP_MD_CTX_free(kctx->ctx);
         OPENSSL_cleanse(kctx->key, kctx->key_len);
@@ -123,52 +151,53 @@ static void kmac_free(EVP_MAC_IMPL *kctx)
     }
 }
 
-static EVP_MAC_IMPL *kmac_new(const EVP_MD *md)
+static void *kmac_new(void *provctx, const EVP_MD *md)
 {
-    EVP_MAC_IMPL *kctx = NULL;
+    struct kmac_data_st *kctx = NULL;
 
     if ((kctx = OPENSSL_zalloc(sizeof(*kctx))) == NULL
             || (kctx->ctx = EVP_MD_CTX_new()) == NULL) {
         kmac_free(kctx);
         return NULL;
     }
+    kctx->provctx = provctx;
     kctx->md = md;
-    kctx->out_len = md->md_size;
+    kctx->out_len = EVP_MD_size(md);
     return kctx;
 }
 
-static EVP_MAC_IMPL *kmac128_new(void)
+static void *kmac128_new(void *provctx)
 {
-    return kmac_new(evp_keccak_kmac128());
+    return kmac_new(provctx, evp_keccak_kmac128());
 }
 
-static EVP_MAC_IMPL *kmac256_new(void)
+static void *kmac256_new(void *provctx)
 {
-    return kmac_new(evp_keccak_kmac256());
+    return kmac_new(provctx, evp_keccak_kmac256());
 }
 
-static EVP_MAC_IMPL *kmac_dup(const EVP_MAC_IMPL *gsrc)
+static void *kmac_dup(void *vsrc)
 {
-    EVP_MAC_IMPL *gdst;
+    struct kmac_data_st *src = vsrc;
+    struct kmac_data_st *dst = kmac_new(src->provctx, src->md);
 
-    gdst = kmac_new(gsrc->md);
-    if (gdst == NULL)
+    if (dst == NULL)
         return NULL;
 
-    if (!EVP_MD_CTX_copy(gdst->ctx, gsrc->ctx)) {
-        kmac_free(gdst);
+    if (!EVP_MD_CTX_copy(dst->ctx, src->ctx)) {
+        kmac_free(dst);
         return NULL;
     }
 
-    gdst->md = gsrc->md;
-    gdst->out_len = gsrc->out_len;
-    gdst->key_len = gsrc->key_len;
-    gdst->custom_len = gsrc->custom_len;
-    gdst->xof_mode = gsrc->xof_mode;
-    memcpy(gdst->key, gsrc->key, gsrc->key_len);
-    memcpy(gdst->custom, gsrc->custom, gdst->custom_len);
+    dst->md = src->md;
+    dst->out_len = src->out_len;
+    dst->key_len = src->key_len;
+    dst->custom_len = src->custom_len;
+    dst->xof_mode = src->xof_mode;
+    memcpy(dst->key, src->key, src->key_len);
+    memcpy(dst->custom, src->custom, dst->custom_len);
 
-    return gdst;
+    return dst;
 }
 
 /*
@@ -176,11 +205,13 @@ static EVP_MAC_IMPL *kmac_dup(const EVP_MAC_IMPL *gsrc)
  * md, key and custom. Setting the fields afterwards will have no
  * effect on the output mac.
  */
-static int kmac_init(EVP_MAC_IMPL *kctx)
+static int kmac_init(void *vmacctx)
 {
+    struct kmac_data_st *kctx = vmacctx;
     EVP_MD_CTX *ctx = kctx->ctx;
     unsigned char out[KMAC_MAX_BLOCKSIZE];
     int out_len, block_len;
+
 
     /* Check key has been set */
     if (kctx->key_len == 0) {
@@ -193,8 +224,13 @@ static int kmac_init(EVP_MAC_IMPL *kctx)
     block_len = EVP_MD_block_size(kctx->md);
 
     /* Set default custom string if it is not already set */
-    if (kctx->custom_len == 0)
-        (void)kmac_ctrl_str(kctx, "custom", "");
+    if (kctx->custom_len == 0) {
+        const OSSL_PARAM params[] = {
+            OSSL_PARAM_octet_string(OSSL_MAC_PARAM_CUSTOM, "", 0),
+            OSSL_PARAM_END
+        };
+        (void)kmac_set_params(kctx, params);
+    }
 
     return bytepad(out, &out_len, kmac_string, sizeof(kmac_string),
                    kctx->custom, kctx->custom_len, block_len)
@@ -202,120 +238,97 @@ static int kmac_init(EVP_MAC_IMPL *kctx)
            && EVP_DigestUpdate(ctx, kctx->key, kctx->key_len);
 }
 
-static size_t kmac_size(EVP_MAC_IMPL *kctx)
+static size_t kmac_size(void *vmacctx)
 {
+    struct kmac_data_st *kctx = vmacctx;
+
     return kctx->out_len;
 }
 
-static int kmac_update(EVP_MAC_IMPL *kctx, const unsigned char *data,
+static int kmac_update(void *vmacctx, const unsigned char *data,
                        size_t datalen)
 {
+    struct kmac_data_st *kctx = vmacctx;
+
     return EVP_DigestUpdate(kctx->ctx, data, datalen);
 }
 
-static int kmac_final(EVP_MAC_IMPL *kctx, unsigned char *out)
+static int kmac_final(void *vmacctx, unsigned char *out, size_t *outl,
+                      size_t outsize)
 {
+    struct kmac_data_st *kctx = vmacctx;
     EVP_MD_CTX *ctx = kctx->ctx;
     int lbits, len;
     unsigned char encoded_outlen[KMAC_MAX_ENCODED_HEADER_LEN];
+    int ok;
 
     /* KMAC XOF mode sets the encoded length to 0 */
     lbits = (kctx->xof_mode ? 0 : (kctx->out_len * 8));
 
-    return right_encode(encoded_outlen, &len, lbits)
-           && EVP_DigestUpdate(ctx, encoded_outlen, len)
-           && EVP_DigestFinalXOF(ctx, out, kctx->out_len);
+    ok = right_encode(encoded_outlen, &len, lbits)
+        && EVP_DigestUpdate(ctx, encoded_outlen, len)
+        && EVP_DigestFinalXOF(ctx, out, kctx->out_len);
+    if (ok && outl != NULL)
+        *outl = kctx->out_len;
+    return ok;
+}
+
+static const OSSL_PARAM known_params[] = {
+    OSSL_PARAM_int(OSSL_MAC_PARAM_XOF, NULL),
+    OSSL_PARAM_size_t(OSSL_MAC_PARAM_OUTLEN, NULL),
+    OSSL_PARAM_size_t(OSSL_MAC_PARAM_SIZE, NULL),
+    OSSL_PARAM_octet_string(OSSL_MAC_PARAM_KEY, NULL, 0),
+    OSSL_PARAM_octet_string(OSSL_MAC_PARAM_CUSTOM, NULL, 0),
+    OSSL_PARAM_END
+};
+static const OSSL_PARAM *kmac_set_param_types(void)
+{
+    return known_params;
 }
 
 /*
- * The following Ctrl functions can be set any time before final():
- *     - EVP_MAC_CTRL_SET_SIZE: The requested output length.
- *     - EVP_MAC_CTRL_SET_XOF: If set, this indicates that right_encoded(0) is
- *                             part of the digested data, otherwise it uses
- *                             right_encoded(requested output length).
-
- * All other Ctrl functions should be set before init().
+ * The following params can be set any time before final():
+ *     - "outlen" or "size":    The requested output length.
+ *     - "xof":                 If set, this indicates that right_encoded(0)
+ *                              is part of the digested data, otherwise it
+ *                              uses right_encoded(requested output length).
+ *
+ * All other params should be set before init().
  */
-static int kmac_ctrl(EVP_MAC_IMPL *kctx, int cmd, va_list args)
+static int kmac_set_params(void *vmacctx, const OSSL_PARAM *params)
 {
-    const unsigned char *p;
-    size_t len;
-    size_t size;
+    struct kmac_data_st *kctx = vmacctx;
+    const OSSL_PARAM *p;
 
-    switch (cmd) {
-    case EVP_MAC_CTRL_SET_XOF:
-        kctx->xof_mode = va_arg(args, int);
-        return 1;
-
-    case EVP_MAC_CTRL_SET_SIZE:
-        size = va_arg(args, size_t);
-        kctx->out_len = size;
-        return 1;
-
-    case EVP_MAC_CTRL_SET_KEY:
-        p = va_arg(args, const unsigned char *);
-        len = va_arg(args, size_t);
-        if (len < 4 || len > KMAC_MAX_KEY) {
-            EVPerr(EVP_F_KMAC_CTRL, EVP_R_INVALID_KEY_LENGTH);
-            return 0;
-        }
-        return kmac_bytepad_encode_key(kctx->key, &kctx->key_len, p, len,
-                                       EVP_MD_block_size(kctx->md));
-
-    case EVP_MAC_CTRL_SET_CUSTOM:
-        p = va_arg(args, const unsigned char *);
-        len = va_arg(args, size_t);
-        if (len > KMAC_MAX_CUSTOM) {
-            EVPerr(EVP_F_KMAC_CTRL, EVP_R_INVALID_CUSTOM_LENGTH);
-            return 0;
-        }
-        return encode_string(kctx->custom, &kctx->custom_len, p, len);
-
-    default:
-        return -2;
-    }
-}
-
-static int kmac_ctrl_int(EVP_MAC_IMPL *kctx, int cmd, ...)
-{
-    int rv;
-    va_list args;
-
-    va_start(args, cmd);
-    rv = kmac_ctrl(kctx, cmd, args);
-    va_end(args);
-
-    return rv;
-}
-
-static int kmac_ctrl_str_cb(void *kctx, int cmd, void *buf, size_t buflen)
-{
-    return kmac_ctrl_int(kctx, cmd, buf, buflen);
-}
-
-static int kmac_ctrl_str(EVP_MAC_IMPL *kctx, const char *type,
-                         const char *value)
-{
-    if (value == NULL)
+    if ((p = OSSL_PARAM_locate_const(params, OSSL_MAC_PARAM_XOF)) != NULL
+        && !OSSL_PARAM_get_int(p, &kctx->xof_mode))
         return 0;
-
-    if (strcmp(type, "outlen") == 0)
-        return kmac_ctrl_int(kctx, EVP_MAC_CTRL_SET_SIZE, (size_t)atoi(value));
-    if (strcmp(type, "xof") == 0)
-        return kmac_ctrl_int(kctx, EVP_MAC_CTRL_SET_XOF, atoi(value));
-    if (strcmp(type, "key") == 0)
-        return EVP_str2ctrl(kmac_ctrl_str_cb, kctx, EVP_MAC_CTRL_SET_KEY,
-                            value);
-    if (strcmp(type, "hexkey") == 0)
-        return EVP_hex2ctrl(kmac_ctrl_str_cb, kctx, EVP_MAC_CTRL_SET_KEY,
-                            value);
-    if (strcmp(type, "custom") == 0)
-        return EVP_str2ctrl(kmac_ctrl_str_cb, kctx, EVP_MAC_CTRL_SET_CUSTOM,
-                            value);
-    if (strcmp(type, "hexcustom") == 0)
-        return EVP_hex2ctrl(kmac_ctrl_str_cb, kctx, EVP_MAC_CTRL_SET_CUSTOM,
-                            value);
-    return -2;
+    if (((p = OSSL_PARAM_locate_const(params, OSSL_MAC_PARAM_OUTLEN)) != NULL
+         ||
+         (p = OSSL_PARAM_locate_const(params, OSSL_MAC_PARAM_SIZE)) != NULL)
+        && !OSSL_PARAM_get_size_t(p, &kctx->out_len))
+        return 0;
+    if ((p = OSSL_PARAM_locate_const(params, OSSL_MAC_PARAM_KEY)) != NULL) {
+        if (p->data_size < 4 || p->data_size > KMAC_MAX_KEY) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_KEY_LENGTH);
+            return 0;
+        }
+        if (!kmac_bytepad_encode_key(kctx->key, &kctx->key_len,
+                                     p->data, p->data_size,
+                                     EVP_MD_block_size(kctx->md)))
+            return 0;
+    }
+    if ((p = OSSL_PARAM_locate_const(params, OSSL_MAC_PARAM_CUSTOM))
+        != NULL) {
+        if (p->data_size > KMAC_MAX_CUSTOM) {
+            ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_CUSTOM_LENGTH);
+            return 0;
+        }
+        if (!encode_string(kctx->custom, &kctx->custom_len,
+                           p->data, p->data_size))
+            return 0;
+    }
+    return 1;
 }
 
 /*
@@ -452,29 +465,30 @@ static int kmac_bytepad_encode_key(unsigned char *out, int *out_len,
     return bytepad(out, out_len, tmp, tmp_len, NULL, 0, w);
 }
 
-const EVP_MAC kmac128_meth = {
-    EVP_MAC_KMAC128,
-    kmac128_new,
-    kmac_dup,
-    kmac_free,
-    kmac_size,
-    kmac_init,
-    kmac_update,
-    kmac_final,
-    kmac_ctrl,
-    kmac_ctrl_str
+const OSSL_DISPATCH kmac128_functions[] = {
+    { OSSL_FUNC_MAC_NEWCTX, (void (*)(void))kmac128_new },
+    { OSSL_FUNC_MAC_DUPCTX, (void (*)(void))kmac_dup },
+    { OSSL_FUNC_MAC_FREECTX, (void (*)(void))kmac_free },
+    { OSSL_FUNC_MAC_SIZE, (void (*)(void))kmac_size },
+    { OSSL_FUNC_MAC_INIT, (void (*)(void))kmac_init },
+    { OSSL_FUNC_MAC_UPDATE, (void (*)(void))kmac_update },
+    { OSSL_FUNC_MAC_FINAL, (void (*)(void))kmac_final },
+    { OSSL_FUNC_MAC_CTX_SET_PARAM_TYPES,
+      (void (*)(void))kmac_set_param_types },
+    { OSSL_FUNC_MAC_CTX_SET_PARAMS, (void (*)(void))kmac_set_params },
+    { 0, NULL }
 };
 
-const EVP_MAC kmac256_meth = {
-    EVP_MAC_KMAC256,
-    kmac256_new,
-    kmac_dup,
-    kmac_free,
-    kmac_size,
-    kmac_init,
-    kmac_update,
-    kmac_final,
-    kmac_ctrl,
-    kmac_ctrl_str
+const OSSL_DISPATCH kmac256_functions[] = {
+    { OSSL_FUNC_MAC_NEWCTX, (void (*)(void))kmac256_new },
+    { OSSL_FUNC_MAC_DUPCTX, (void (*)(void))kmac_dup },
+    { OSSL_FUNC_MAC_FREECTX, (void (*)(void))kmac_free },
+    { OSSL_FUNC_MAC_SIZE, (void (*)(void))kmac_size },
+    { OSSL_FUNC_MAC_INIT, (void (*)(void))kmac_init },
+    { OSSL_FUNC_MAC_UPDATE, (void (*)(void))kmac_update },
+    { OSSL_FUNC_MAC_FINAL, (void (*)(void))kmac_final },
+    { OSSL_FUNC_MAC_CTX_SET_PARAM_TYPES,
+      (void (*)(void))kmac_set_param_types },
+    { OSSL_FUNC_MAC_CTX_SET_PARAMS, (void (*)(void))kmac_set_params },
+    { 0, NULL }
 };
-
