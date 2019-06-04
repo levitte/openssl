@@ -4708,3 +4708,5 @@ EVP_MAC_CTX_get_param_types             4817	3_0_0	EXIST::FUNCTION:
 EVP_MAC_free                            4818	3_0_0	EXIST::FUNCTION:
 EVP_MAC_up_ref                          4819	3_0_0	EXIST::FUNCTION:
 EVP_MAC_name                            4820	3_0_0	EXIST::FUNCTION:
+EVP_MAC_provider                        4821	3_0_0	EXIST::FUNCTION:
+EVP_MAC_do_all_ex                       4822	3_0_0	EXIST::FUNCTION:
