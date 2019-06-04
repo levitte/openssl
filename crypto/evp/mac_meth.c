@@ -167,6 +167,11 @@ const char *EVP_MAC_name(const EVP_MAC *mac)
     return mac->name;
 }
 
+const OSSL_PROVIDER *EVP_MAC_provider(const EVP_MAC *mac)
+{
+    return mac->prov;
+}
+
 const OSSL_PARAM *EVP_MAC_CTX_get_param_types(const EVP_MAC *mac)
 {
     if (mac->ctx_get_param_types == NULL)

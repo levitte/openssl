@@ -1017,6 +1017,7 @@ EVP_MAC *EVP_MAC_fetch(OPENSSL_CTX *libctx, const char *algorithm,
 int EVP_MAC_up_ref(EVP_MAC *mac);
 void EVP_MAC_free(EVP_MAC *mac);
 const char *EVP_MAC_name(const EVP_MAC *mac);
+const OSSL_PROVIDER *EVP_MAC_provider(const EVP_MAC *mac);
 
 EVP_MAC_CTX *EVP_MAC_CTX_new(EVP_MAC *mac);
 void EVP_MAC_CTX_free(EVP_MAC_CTX *ctx);
