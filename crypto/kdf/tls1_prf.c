@@ -51,6 +51,7 @@
 #include "internal/cryptlib.h"
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
+#include <openssl/params.h>
 #include "internal/evp_int.h"
 #include "kdf_local.h"
 
@@ -232,19 +233,29 @@ static int tls1_prf_P_hash(const EVP_MD *md,
                            unsigned char *out, size_t olen)
 {
     size_t chunk;
+    EVP_MAC *mac = NULL;
     EVP_MAC_CTX *ctx = NULL, *ctx_Ai = NULL, *ctx_init = NULL;
     unsigned char Ai[EVP_MAX_MD_SIZE];
     size_t Ai_len;
     int ret = 0;
+    OSSL_PARAM params[4];
+    int mac_flags;
+    const char *mdname = EVP_MD_name(md);
 
-    ctx_init = EVP_MAC_CTX_new_id(EVP_MAC_HMAC);
+    mac = EVP_MAC_fetch(NULL, "HMAC", NULL); /* Implicit fetch */
+    ctx_init = EVP_MAC_CTX_new(mac);
     if (ctx_init == NULL)
         goto err;
-    if (EVP_MAC_ctrl(ctx_init, EVP_MAC_CTRL_SET_FLAGS, EVP_MD_CTX_FLAG_NON_FIPS_ALLOW) != 1)
-        goto err;
-    if (EVP_MAC_ctrl(ctx_init, EVP_MAC_CTRL_SET_MD, md) != 1)
-        goto err;
-    if (EVP_MAC_ctrl(ctx_init, EVP_MAC_CTRL_SET_KEY, sec, sec_len) != 1)
+
+    /* TODO(3.0) rethink "flags", also see hmac.c in providers */
+    mac_flags = EVP_MD_CTX_FLAG_NON_FIPS_ALLOW;
+    params[0] = OSSL_PARAM_construct_int("flags", &mac_flags);
+    params[1] = OSSL_PARAM_construct_utf8_string("algorithm", (char *)mdname,
+                                                 strlen(mdname) + 1);
+    params[2] = OSSL_PARAM_construct_octet_string("key", (void *)sec,
+                                                  sec_len);
+    params[3] = OSSL_PARAM_construct_end();
+    if (!EVP_MAC_CTX_set_params(ctx_init, params))
         goto err;
     if (!EVP_MAC_init(ctx_init))
         goto err;
@@ -260,7 +271,7 @@ static int tls1_prf_P_hash(const EVP_MD *md,
 
     for (;;) {
         /* calc: A(i) = HMAC_<hash>(secret, A(i-1)) */
-        if (!EVP_MAC_final(ctx_Ai, Ai, &Ai_len))
+        if (!EVP_MAC_final(ctx_Ai, Ai, &Ai_len, sizeof(Ai)))
             goto err;
         EVP_MAC_CTX_free(ctx_Ai);
         ctx_Ai = NULL;
@@ -281,12 +292,12 @@ static int tls1_prf_P_hash(const EVP_MD *md,
             goto err;
         if (olen <= chunk) {
             /* last chunk - use Ai as temp bounce buffer */
-            if (!EVP_MAC_final(ctx, Ai, &Ai_len))
+            if (!EVP_MAC_final(ctx, Ai, &Ai_len, sizeof(Ai)))
                 goto err;
             memcpy(out, Ai, olen);
             break;
         }
-        if (!EVP_MAC_final(ctx, out, NULL))
+        if (!EVP_MAC_final(ctx, out, NULL, olen))
             goto err;
         EVP_MAC_CTX_free(ctx);
         ctx = NULL;
@@ -298,6 +309,7 @@ static int tls1_prf_P_hash(const EVP_MD *md,
     EVP_MAC_CTX_free(ctx);
     EVP_MAC_CTX_free(ctx_Ai);
     EVP_MAC_CTX_free(ctx_init);
+    EVP_MAC_free(mac);
     OPENSSL_cleanse(Ai, sizeof(Ai));
     return ret;
 }

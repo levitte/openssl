@@ -44,6 +44,7 @@ static void *keymgmt_from_dispatch(const char *name, const OSSL_DISPATCH *fns,
         return NULL;
     }
 
+
     for (; fns->function_id != 0; fns++) {
         switch (fns->function_id) {
         case OSSL_FUNC_KEYMGMT_IMPORTDOMPARAMS:

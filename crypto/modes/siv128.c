@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
+#include <openssl/params.h>
 #include "internal/modes_int.h"
 #include "internal/siv_int.h"
 
@@ -117,7 +118,7 @@ __owur static ossl_inline int siv128_do_s2v_p(SIV128_CONTEXT *ctx, SIV_BLOCK *ou
         if (!EVP_MAC_update(mac_ctx, t.byte, SIV_LEN))
             goto err;
     }
-    if (!EVP_MAC_final(mac_ctx, out->byte, &out_len)
+    if (!EVP_MAC_final(mac_ctx, out->byte, &out_len, sizeof(out->byte))
         || out_len != SIV_LEN)
         goto err;
 
@@ -167,6 +168,14 @@ int CRYPTO_siv128_init(SIV128_CONTEXT *ctx, const unsigned char *key, int klen,
     static const unsigned char zero[SIV_LEN] = { 0 };
     size_t out_len = SIV_LEN;
     EVP_MAC_CTX *mac_ctx = NULL;
+    OSSL_PARAM params[3];
+    const char *cbc_name = EVP_CIPHER_name(cbc);
+
+    params[0] = OSSL_PARAM_construct_utf8_string("algorithm",
+                                                 (char *)cbc_name,
+                                                 strlen(cbc_name) + 1);
+    params[1] = OSSL_PARAM_construct_octet_string("key", (void *)key, klen);
+    params[2] = OSSL_PARAM_construct_end();
 
     memset(&ctx->d, 0, sizeof(ctx->d));
     ctx->cipher_ctx = NULL;
@@ -174,16 +183,19 @@ int CRYPTO_siv128_init(SIV128_CONTEXT *ctx, const unsigned char *key, int klen,
 
     if (key == NULL || cbc == NULL || ctr == NULL
             || (ctx->cipher_ctx = EVP_CIPHER_CTX_new()) == NULL
-            || (ctx->mac_ctx_init = EVP_MAC_CTX_new_id(EVP_MAC_CMAC)) == NULL
-            || EVP_MAC_ctrl(ctx->mac_ctx_init, EVP_MAC_CTRL_SET_CIPHER, cbc) <= 0
-            || EVP_MAC_ctrl(ctx->mac_ctx_init, EVP_MAC_CTRL_SET_KEY, key, klen) <= 0
+            /* TODO(3.0) library context */
+            || (ctx->mac = EVP_MAC_fetch(NULL, "CMAC", NULL)) == NULL
+            || (ctx->mac_ctx_init = EVP_MAC_CTX_new(ctx->mac)) == NULL
+            || !EVP_MAC_CTX_set_params(ctx->mac_ctx_init, params)
             || !EVP_EncryptInit_ex(ctx->cipher_ctx, ctr, NULL, key + klen, NULL)
             || (mac_ctx = EVP_MAC_CTX_dup(ctx->mac_ctx_init)) == NULL
             || !EVP_MAC_update(mac_ctx, zero, sizeof(zero))
-            || !EVP_MAC_final(mac_ctx, ctx->d.byte, &out_len)) {
+            || !EVP_MAC_final(mac_ctx, ctx->d.byte, &out_len,
+                              sizeof(ctx->d.byte))) {
         EVP_CIPHER_CTX_free(ctx->cipher_ctx);
         EVP_MAC_CTX_free(ctx->mac_ctx_init);
         EVP_MAC_CTX_free(mac_ctx);
+        EVP_MAC_free(ctx->mac);
         return 0;
     }
     EVP_MAC_CTX_free(mac_ctx);
@@ -223,10 +235,11 @@ int CRYPTO_siv128_aad(SIV128_CONTEXT *ctx, const unsigned char *aad,
 
     siv128_dbl(&ctx->d);
 
-    mac_ctx = EVP_MAC_CTX_dup(ctx->mac_ctx_init);
-    if (mac_ctx == NULL
+    ;
+    if ((mac_ctx = EVP_MAC_CTX_dup(ctx->mac_ctx_init)) == NULL
         || !EVP_MAC_update(mac_ctx, aad, len)
-        || !EVP_MAC_final(mac_ctx, mac_out.byte, &out_len)
+        || !EVP_MAC_final(mac_ctx, mac_out.byte, &out_len,
+                          sizeof(mac_out.byte))
         || out_len != SIV_LEN) {
         EVP_MAC_CTX_free(mac_ctx);
         return 0;
@@ -345,6 +358,8 @@ int CRYPTO_siv128_cleanup(SIV128_CONTEXT *ctx)
         ctx->cipher_ctx = NULL;
         EVP_MAC_CTX_free(ctx->mac_ctx_init);
         ctx->mac_ctx_init = NULL;
+        EVP_MAC_free(ctx->mac);
+        ctx->mac = NULL;
         OPENSSL_cleanse(&ctx->d, sizeof(ctx->d));
         OPENSSL_cleanse(&ctx->tag, sizeof(ctx->tag));
         ctx->final_ret = -1;
