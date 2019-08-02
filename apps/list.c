@@ -16,6 +16,68 @@
 #include "progs.h"
 #include "opt.h"
 
+static int describe_param_type(char *buf, size_t bufsz, const OSSL_PARAM *param)
+{
+    const char *type_mod = "";
+    const char *type = NULL;
+    int show_type_number = 0;
+    int printed_len;
+
+    switch (param->data_type) {
+    case OSSL_PARAM_UNSIGNED_INTEGER:
+        type_mod = "unsigned ";
+        /* FALLTHRU */
+    case OSSL_PARAM_INTEGER:
+        type = "integer";
+        break;
+    case OSSL_PARAM_UTF8_PTR:
+        type_mod = "pointer to a ";
+        /* FALLTHRU */
+    case OSSL_PARAM_UTF8_STRING:
+        type = "UTF8 encoded string";
+        break;
+    case OSSL_PARAM_OCTET_PTR:
+        type_mod = "pointer to an ";
+        /* FALLTHRU */
+    case OSSL_PARAM_OCTET_STRING:
+        type = "octet string";
+        break;
+    default:
+        type = "unknown type";
+        show_type_number = 1;
+        break;
+    }
+
+    printed_len = BIO_snprintf(buf, bufsz, "%s: ", param->key);
+    if (printed_len > 0) {
+        buf += printed_len;
+        bufsz -= printed_len;
+    }
+    printed_len = BIO_snprintf(buf, bufsz, "%s%s", type_mod, type);
+    if (printed_len > 0) {
+        buf += printed_len;
+        bufsz -= printed_len;
+    }
+    if (show_type_number) {
+        printed_len = BIO_snprintf(buf, bufsz, " [%d]", param->data_type);
+        if (printed_len > 0) {
+            buf += printed_len;
+            bufsz -= printed_len;
+        }
+    }
+    if (param->data_size == 0)
+        printed_len = BIO_snprintf(buf, bufsz, " (arbitrary size)");
+    else
+        printed_len = BIO_snprintf(buf, bufsz, " (max %zu bytes large)",
+                                   param->data_size);
+    if (printed_len > 0) {
+        buf += printed_len;
+        bufsz -= printed_len;
+    }
+    *buf = '\0';
+    return 1;
+}
+
 static void list_cipher_fn(const EVP_CIPHER *c,
                            const char *from, const char *to, void *arg)
 {
@@ -127,21 +189,66 @@ static void list_digests(void)
     sk_EVP_MD_pop_free(digests, EVP_MD_meth_free);
 }
 
-#if 0                            /* Temporarly disabled */
-static void list_mac_fn(const EVP_MAC *m,
-                        const char *from, const char *to, void *arg)
+DEFINE_STACK_OF(EVP_MAC)
+static int mac_cmp(const EVP_MAC * const *a, const EVP_MAC * const *b)
 {
-    if (m != NULL) {
-        BIO_printf(arg, "%s\n", EVP_MAC_name(m));
-    } else {
-        if (from == NULL)
-            from = "<undefined>";
-        if (to == NULL)
-            to = "<undefined>";
-        BIO_printf(arg, "%s => %s\n", from, to);
-    }
+    int ret = strcasecmp(EVP_MAC_name(*a), EVP_MAC_name(*b));
+
+    if (ret == 0)
+        ret = strcmp(OSSL_PROVIDER_name(EVP_MAC_provider(*a)),
+                     OSSL_PROVIDER_name(EVP_MAC_provider(*b)));
+
+    return ret;
 }
-#endif
+
+static void collect_macs(EVP_MAC *mac, void *stack)
+{
+    STACK_OF(EVP_MAC) *mac_stack = stack;
+
+    sk_EVP_MAC_push(mac_stack, mac);
+    EVP_MAC_up_ref(mac);
+}
+
+static void list_macs(void)
+{
+    STACK_OF(EVP_MAC) *macs = sk_EVP_MAC_new(mac_cmp);
+    int i;
+
+    BIO_printf(bio_out, "Provided MACs:\n");
+    EVP_MAC_do_all_ex(NULL, collect_macs, macs);
+    sk_EVP_MAC_sort(macs);
+    for (i = 0; i < sk_EVP_MAC_num(macs); i++) {
+        const EVP_MAC *m = sk_EVP_MAC_value(macs, i);
+        const OSSL_PARAM *pdefs = NULL;
+
+        BIO_printf(bio_out, "  %s", EVP_MAC_name(m));
+        BIO_printf(bio_out, " @ %s\n",
+                   OSSL_PROVIDER_name(EVP_MAC_provider(m)));
+
+        /* We might want to implement verbose mode */
+        pdefs = EVP_MAC_CTX_get_param_types(m);
+        if (pdefs != NULL && pdefs->key != NULL) {
+            char buf[80];
+
+            BIO_printf(bio_out, "    Retrievable operation parameters:\n");
+            for (; pdefs->key != NULL; pdefs++) {
+                describe_param_type(buf, sizeof(buf), pdefs);
+                BIO_printf(bio_out, "      %s\n", buf);
+            }
+        }
+        pdefs = EVP_MAC_CTX_set_param_types(m);
+        if (pdefs != NULL && pdefs->key != NULL) {
+            char buf[80];
+
+            BIO_printf(bio_out, "    Settable operation parameters:\n");
+            for (; pdefs->key != NULL; pdefs++) {
+                describe_param_type(buf, sizeof(buf), pdefs);
+                BIO_printf(bio_out, "      %s\n", buf);
+            }
+        }
+    }
+    sk_EVP_MAC_pop_free(macs, EVP_MAC_free);
+}
 
 static void list_missing_help(void)
 {
@@ -540,9 +647,7 @@ opthelp:
             list_digests();
             break;
         case OPT_MAC_ALGORITHMS:
-#if 0                            /* Temporarly disabled */
-            EVP_MAC_do_all_sorted(list_mac_fn, bio_out);
-#endif
+            list_macs();
             break;
         case OPT_CIPHER_COMMANDS:
             list_type(FT_cipher, one);
