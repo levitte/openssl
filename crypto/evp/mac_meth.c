@@ -169,10 +169,14 @@ const char *EVP_MAC_name(const EVP_MAC *mac)
 
 const OSSL_PARAM *EVP_MAC_CTX_get_param_types(const EVP_MAC *mac)
 {
+    if (mac->ctx_get_param_types == NULL)
+        return NULL;
     return mac->ctx_get_param_types();
 }
 
 const OSSL_PARAM *EVP_MAC_CTX_set_param_types(const EVP_MAC *mac)
 {
+    if (mac->ctx_set_param_types == NULL)
+        return NULL;
     return mac->ctx_set_param_types();
 }
