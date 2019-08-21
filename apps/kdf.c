@@ -15,6 +15,7 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
+#include <openssl/params.h>
 
 typedef enum OPTION_choice {
     OPT_ERR = -1, OPT_EOF = 0, OPT_HELP,
@@ -34,27 +35,9 @@ const OPTIONS kdf_options[] = {
     {NULL}
 };
 
-static int kdf_ctrl_string(EVP_KDF_CTX *ctx, const char *value)
-{
-    int rv;
-    char *stmp, *vtmp = NULL;
-
-    stmp = OPENSSL_strdup(value);
-    if (stmp == NULL)
-        return -1;
-    vtmp = strchr(stmp, ':');
-    if (vtmp != NULL) {
-        *vtmp = 0;
-        vtmp++;
-    }
-    rv = EVP_KDF_ctrl_str(ctx, stmp, vtmp);
-    OPENSSL_free(stmp);
-    return rv;
-}
-
 int kdf_main(int argc, char **argv)
 {
-    int ret = 1, i, id, out_bin = 0;
+    int ret = 1, i, n, out_bin = 0;
     OPTION_CHOICE o;
     STACK_OF(OPENSSL_STRING) *opts = NULL;
     char *prog, *hexout = NULL;
@@ -62,7 +45,10 @@ int kdf_main(int argc, char **argv)
     unsigned char *dkm_bytes = NULL;
     size_t dkm_len = 0;
     BIO *out = NULL;
+    EVP_KDF *kdf = NULL;
     EVP_KDF_CTX *ctx = NULL;
+    const OSSL_PARAM *def;
+    OSSL_PARAM *params = NULL, *p = NULL;
 
     prog = opt_init(argc, argv, kdf_options);
     while ((o = opt_next()) != OPT_EOF) {
@@ -100,24 +86,57 @@ opthelp:
         goto opthelp;
     }
 
-    id = OBJ_sn2nid(argv[0]);
-    if (id == NID_undef) {
+    if ((kdf = EVP_KDF_fetch(NULL, argv[0], NULL)) == NULL) {
         BIO_printf(bio_err, "Invalid KDF name %s\n", argv[0]);
         goto opthelp;
     }
 
-    ctx = EVP_KDF_CTX_new_id(id);
+    ctx = EVP_KDF_CTX_new(kdf);
     if (ctx == NULL)
         goto err;
 
     if (opts != NULL) {
-        for (i = 0; i < sk_OPENSSL_STRING_num(opts); i++) {
+        def = EVP_KDF_CTX_settable_params(kdf);
+        n = sk_OPENSSL_STRING_num(opts);
+        p = params = app_malloc((1 + n) * sizeof(*params), "params");
+        if (p == NULL)
+            goto err;
+        memset(p, 0, (1 + n) * sizeof(*params));
+        for (i = 0; i < n; i++) {
             char *opt = sk_OPENSSL_STRING_value(opts, i);
-            if (kdf_ctrl_string(ctx, opt) <= 0) {
-                BIO_printf(bio_err, "KDF parameter error '%s'\n", opt);
+            char *stmp, *vtmp, *name;
+
+            name = stmp = OPENSSL_strdup(opt);
+            if (stmp == NULL) {
+                BIO_printf(bio_err, "KDF parameter allocation error '%s'\n",
+                           opt);
                 ERR_print_errors(bio_err);
                 goto err;
             }
+            vtmp = strchr(stmp, ':');
+            if (vtmp == NULL)
+                vtmp = "";
+            else
+                *vtmp++ = '\0';
+            /* Remap legacy parameter names */
+            if (strcmp(stmp, "N") == 0)
+                *stmp = 'n';
+            if (strcmp(stmp, "md") == 0)
+                name = "digest";
+            if (!OSSL_PARAM_allocate_from_text(p++, def, name, vtmp,
+                                               strlen(vtmp))) {
+                BIO_printf(bio_err, "KDF parameter error '%s'\n", opt);
+                ERR_print_errors(bio_err);
+                OPENSSL_free(stmp);
+                goto err;
+            }
+            OPENSSL_free(stmp);
+        }
+        *p = OSSL_PARAM_construct_end();
+        if (!EVP_KDF_CTX_set_params(ctx, params)) {
+            BIO_printf(bio_err, "KDF parameter set error\n");
+            ERR_print_errors(bio_err);
+            goto err;
         }
     }
 
@@ -149,8 +168,12 @@ opthelp:
 err:
     if (ret != 0)
         ERR_print_errors(bio_err);
+    while (p > params)
+        OPENSSL_free((--p)->data);
+    OPENSSL_free(params);
     OPENSSL_clear_free(dkm_bytes, dkm_len);
     sk_OPENSSL_STRING_free(opts);
+    EVP_KDF_free(kdf);
     EVP_KDF_CTX_free(ctx);
     BIO_free(out);
     OPENSSL_free(hexout);
