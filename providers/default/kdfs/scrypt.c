@@ -72,8 +72,8 @@ static void kdf_scrypt_free(void *vctx)
 {
     KDF_SCRYPT *ctx = (KDF_SCRYPT *)vctx;
 
-    kdf_scrypt_reset(ctx);
     EVP_MD_meth_free(ctx->sha256);
+    kdf_scrypt_reset(ctx);
     OPENSSL_free(ctx);
 }
 
@@ -83,7 +83,6 @@ static void kdf_scrypt_reset(void *vctx)
 
     OPENSSL_free(ctx->salt);
     OPENSSL_clear_free(ctx->pass, ctx->pass_len);
-    memset(ctx, 0, sizeof(*ctx));
     kdf_scrypt_init(ctx);
 }
 

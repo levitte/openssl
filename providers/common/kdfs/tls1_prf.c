@@ -103,8 +103,6 @@ static void kdf_tls1_prf_free(void *vctx)
     TLS1_PRF *ctx = (TLS1_PRF *)vctx;
 
     kdf_tls1_prf_reset(ctx);
-    EVP_MD_meth_free(ctx->sha1);
-    EVP_MD_meth_free(ctx->md);
     OPENSSL_free(ctx);
 }
 
@@ -112,6 +110,8 @@ static void kdf_tls1_prf_reset(void *vctx)
 {
     TLS1_PRF *ctx = (TLS1_PRF *)vctx;
 
+    EVP_MD_meth_free(ctx->sha1);
+    EVP_MD_meth_free(ctx->md);
     OPENSSL_clear_free(ctx->sec, ctx->seclen);
     OPENSSL_cleanse(ctx->seed, ctx->seedlen);
     memset(ctx, 0, sizeof(*ctx));
