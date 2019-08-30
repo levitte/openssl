@@ -218,7 +218,7 @@ static const OSSL_PARAM *kdf_scrypt_gettable_ctx_params(void)
     return known_gettable_ctx_params;
 }
 
-const OSSL_DISPATCH kdf_scrypt_functions[] = {
+static const OSSL_DISPATCH kdf_scrypt_functions[] = {
     { OSSL_FUNC_KDF_NEWCTX, (void(*)(void))kdf_scrypt_new },
     { OSSL_FUNC_KDF_FREECTX, (void(*)(void))kdf_scrypt_free },
     { OSSL_FUNC_KDF_RESET, (void(*)(void))kdf_scrypt_reset },
