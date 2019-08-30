@@ -446,7 +446,7 @@ static int test_kdf_sshkdf(void)
 
 static int test_kdf_get_kdf(void)
 {
-    EVP_KDF *kdf1, *kdf2;
+    EVP_KDF *kdf1 = NULL, *kdf2 = NULL;
     ASN1_OBJECT *obj;
     int ok = 1;
 
@@ -457,7 +457,9 @@ static int test_kdf_get_kdf(void)
         || !TEST_ptr_eq(kdf1, kdf2))
         ok = 0;
     EVP_KDF_free(kdf1);
+    kdf1 = NULL;
     EVP_KDF_free(kdf2);
+    kdf2 = NULL;
 
     if (!TEST_ptr(kdf1 = EVP_KDF_fetch(NULL, SN_tls1_prf, NULL))
         || !TEST_ptr(kdf2 = EVP_KDF_fetch(NULL, LN_tls1_prf, NULL))
@@ -465,12 +467,15 @@ static int test_kdf_get_kdf(void)
         ok = 0;
     /* kdf1 is re-used below, so don't free it here */
     EVP_KDF_free(kdf2);
+    kdf2 = NULL;
 
     if (!TEST_ptr(kdf2 = EVP_KDF_fetch(NULL, OBJ_nid2sn(NID_tls1_prf), NULL))
         || !TEST_ptr_eq(kdf1, kdf2))
         ok = 0;
     EVP_KDF_free(kdf1);
+    kdf1 = NULL;
     EVP_KDF_free(kdf2);
+    kdf2 = NULL;
 
     return ok;
 }
