@@ -202,7 +202,7 @@ static int pkey_kdf_ctrl_str(EVP_PKEY_CTX *ctx, const char *type,
         type = OSSL_KDF_PARAM_SCRYPT_N;
 
     if (!OSSL_PARAM_allocate_from_text(&params[0], defs, type,
-                                       value, strlen(value) + 1))
+                                       value, strlen(value)))
         return 0;
     ok = EVP_KDF_CTX_set_params(kctx, params);
     OPENSSL_free(params[0].data);
