@@ -91,7 +91,8 @@ static int collect(BUF_MEM **collector, void *data, size_t datalen)
     if (!BUF_MEM_grow(*collector, i + datalen)
         && i + datalen != 0)
         return 0;
-    memcpy((*collector)->data + i, data, datalen);
+    if (data != NULL)
+        memcpy((*collector)->data + i, data, datalen);
     return 1;
 }
 
