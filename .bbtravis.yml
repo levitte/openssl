@@ -1,0 +1,97 @@
+language: c
+
+env:
+    global:
+        -   SRCDIR=. BLDDIR=. DESTDIR=''
+    matrix:
+        -   >-
+            PROJECT=unix TEST=yes INSTALL=yes BUILDDIST=yes
+            SRCDIR=_srcdir BLDDIR=_build DESTDIR=_install
+            CONFIG=""
+        -   PROJECT=unix CHECKDOCS=yes CONFIG=""
+        -   >-
+            PROJECT=unix TEST=yes
+            CONFIG="no-asm -Werror --debug no-afalgeng no-shared enable-rc5 enable-md2 -fsanitize=address"
+            LSAN_OPTIONS="report_objects=1"
+
+#### Currently has issues
+#
+#        -   >-
+#            PROJECT=unix BUILD=yes GENERATE=yes
+#            CONFIG="no-asm no-makedepend enable-buildtest-c++ --strict-warnings -D_DEFAULT_SOURCE"
+#            CPPFLAGS="-ansi"
+
+before_install:
+    -   condition: DESTDIR == '.' or DESTDIR == '..' or DESTDIR.find('/') >= 0
+        cmd: |
+            echo >&2 'DESTDIR may not be ".", ".." or contain a slash'
+            exit 1
+    -   condition: BLDDIR == '..' or BLDDIR.find('/') >= 0
+        cmd: |
+            echo >&2 'BLDDIR may not be ".." or contain a slash'
+            exit 1
+    -   condition: SRCDIR == '..' or SRCDIR.find('/') >= 0
+        cmd: |
+            echo >&2 'SRCDIR may not be ".." or contain a slash'
+            exit 1
+    -   condition: BUILDDIST == 'yes' and SRCDIR == '.'
+        cmd: |
+            echo >&2 'For a dist build, SRCDIR must be other than "."'
+            exit 1
+
+install:
+    -   condition: BUILDDIST == 'yes'
+        cmd: |
+            ./util/mktar.sh --name=$SRCDIR
+            tar -xvf $SRCDIR.tar.gz
+
+before_script:
+    -   |
+        cat > settings.sh <<EOF
+        if [ "$BLDDIR" = "." ]; then
+            top=.
+        else
+            mkdir -p $BLDDIR
+            cd $BLDDIR
+            top=..
+        fi
+        echo "PWD: $PWD"
+        echo "top: $top"
+        EOF
+
+script:
+    -   title: Configure (unix)
+        cmd: |
+            . ./settings.sh
+            $top/$SRCDIR/config $CONFIG
+            ./configdata.pm --dump
+
+    -   title: Check documentation (unix)
+        condition: CHECKDOCS == 'yes'
+        cmd: |
+            . ./settings.sh
+            make doc-nits
+
+    -   title: Update (unix)
+        condition: BUILD == 'yes' or TEST == 'yes'
+        cmd: |
+            . ./settings.sh
+            make update && git diff --exit-code
+
+    -   title: Build (unix)
+        condition: BUILD == 'yes'
+        cmd: |
+            . ./settings.sh
+            make all
+
+    -   title: Test (unix)
+        condition: TEST == 'yes'
+        cmd: |
+            . ./settings.sh
+            make test VF=1
+
+    -   title: Install (unix)
+        condition: INSTALL == 'yes'
+        cmd: |
+            . ./settings.sh
+            make install DESTDIR="$top/$DESTDIR"
