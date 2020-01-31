@@ -24,13 +24,13 @@ FUNCTION functions[] = {
     {FT_general, "crl", crl_main, crl_options},
     {FT_general, "crl2pkcs7", crl2pkcs7_main, crl2pkcs7_options},
     {FT_general, "dgst", dgst_main, dgst_options},
-#ifndef OPENSSL_NO_DH
+#if !defined(OPENSSL_NO_DH) && !defined(OPENSSL_NO_DEPRECATED_3_0)
     {FT_general, "dhparam", dhparam_main, dhparam_options},
 #endif
 #ifndef OPENSSL_NO_DSA
     {FT_general, "dsa", dsa_main, dsa_options},
 #endif
-#ifndef OPENSSL_NO_DSA
+#if !defined(OPENSSL_NO_DSA) && !defined(OPENSSL_NO_DEPRECATED_3_0)
     {FT_general, "dsaparam", dsaparam_main, dsaparam_options},
 #endif
 #ifndef OPENSSL_NO_EC

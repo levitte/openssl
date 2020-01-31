@@ -83,6 +83,7 @@ much quicker that RSA key generation for example.
 =head1 SEE ALSO
 
 L<openssl(1)>,
+L<openssl-pkey(1)>,
 L<openssl-dsaparam(1)>,
 L<openssl-dsa(1)>,
 L<openssl-genrsa(1)>,

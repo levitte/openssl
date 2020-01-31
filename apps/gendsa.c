@@ -8,7 +8,7 @@
  */
 
 #include <openssl/opensslconf.h>
-#ifdef OPENSSL_NO_DSA
+#if defined(OPENSSL_NO_DSA)
 NON_EMPTY_TRANSLATION_UNIT
 #else
 
@@ -62,7 +62,8 @@ int gendsa_main(int argc, char **argv)
     char *outfile = NULL, *passoutarg = NULL, *passout = NULL, *prog;
     OPTION_CHOICE o;
     int ret = 1, private = 0, verbose = 0;
-    const BIGNUM *p = NULL;
+    EVP_PKEY *pkey = NULL;
+    EVP_PKEY_CTX *ctx = NULL;
 
     prog = opt_init(argc, argv, gendsa_options);
     while ((o = opt_next()) != OPT_EOF) {
@@ -106,6 +107,12 @@ int gendsa_main(int argc, char **argv)
         goto opthelp;
     dsaparams = *argv;
 
+    pkey = EVP_PKEY_new();
+    if (pkey == NULL) {
+        BIO_printf(bio_err, "Error creating PKEY\n");
+        goto end;
+    }
+
     if (!app_passwd(NULL, passoutarg, NULL, &passout)) {
         BIO_printf(bio_err, "Error getting password\n");
         goto end;
@@ -126,18 +133,40 @@ int gendsa_main(int argc, char **argv)
     if (out == NULL)
         goto end2;
 
-    DSA_get0_pqg(dsa, &p, NULL, NULL);
+    if (!EVP_PKEY_set1_DSA(pkey, dsa)) {
+        BIO_printf(bio_err, "Error setting DSA parameters in PKEY\n");
+        goto end;
+    }
+    DSA_free(dsa);
+    dsa = NULL;
 
-    if (BN_num_bits(p) > OPENSSL_DSA_MAX_MODULUS_BITS)
+    if (EVP_PKEY_bits(pkey) > OPENSSL_DSA_MAX_MODULUS_BITS)
         BIO_printf(bio_err,
                    "Warning: It is not recommended to use more than %d bit for DSA keys.\n"
                    "         Your key size is %d! Larger key size may behave not as expected.\n",
-                   OPENSSL_DSA_MAX_MODULUS_BITS, BN_num_bits(p));
+                   OPENSSL_DSA_MAX_MODULUS_BITS, EVP_PKEY_bits(pkey));
 
     if (verbose)
-        BIO_printf(bio_err, "Generating DSA key, %d bits\n", BN_num_bits(p));
-    if (!DSA_generate_key(dsa))
+        BIO_printf(bio_err, "Generating DSA key, %d bits\n",
+                   EVP_PKEY_bits(pkey));
+
+    if ((ctx = EVP_PKEY_CTX_new_from_pkey(NULL, pkey, NULL)) == NULL) {
+        BIO_printf(bio_err, "Error initialising PKEY context\n");
         goto end;
+    }
+    EVP_PKEY_free(pkey);
+    pkey = NULL;
+
+    if (!EVP_PKEY_keygen_init(ctx) || !EVP_PKEY_keygen(ctx, &pkey)) {
+        BIO_printf(bio_err, "Error generating key\n");
+        goto end;
+    }
+
+    dsa = EVP_PKEY_get1_DSA(pkey);
+    if (dsa == NULL) {
+        BIO_printf(bio_err, "Error extracting key\n");
+        goto end;
+    }
 
     assert(private);
     if (!PEM_write_bio_DSAPrivateKey(out, dsa, enc, NULL, 0, NULL, passout))
@@ -147,6 +176,8 @@ int gendsa_main(int argc, char **argv)
     if (ret != 0)
         ERR_print_errors(bio_err);
  end2:
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(pkey);
     BIO_free(in);
     BIO_free_all(out);
     DSA_free(dsa);

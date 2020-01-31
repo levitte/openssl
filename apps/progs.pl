@@ -95,11 +95,13 @@ EOF
         genrsa   => "rsa",
         rsautl   => "rsa",
         gendsa   => "dsa",
-        dsaparam => "dsa",
         gendh    => "dh",
-        dhparam  => "dh",
         ecparam  => "ec",
         pkcs12   => "des",
+    );
+    my %cmd_deprecated = (
+        dsaparam => [ "3_0", "dsa"],
+        dhparam  => [ "3_0", "dh"],
     );
 
     print "FUNCTION functions[] = {\n";
@@ -110,6 +112,13 @@ EOF
             print "#ifndef OPENSSL_NO_SOCK\n${str}#endif\n";
         } elsif (grep { $cmd eq $_ } @disablables) {
             print "#ifndef OPENSSL_NO_" . uc($cmd) . "\n${str}#endif\n";
+        } elsif (my $deprecated = $cmd_deprecated{$cmd}) {
+            print "#if ";
+            if (@{$deprecated}[1]) {
+                print "!defined(OPENSSL_NO_" . uc(@{$deprecated}[1]) . ") && ";
+            }
+            print "!defined(OPENSSL_NO_DEPRECATED_" . @{$deprecated}[0] . ")";
+            print "\n${str}#endif\n";
         } elsif (my $disabler = $cmd_disabler{$cmd}) {
             print "#ifndef OPENSSL_NO_" . uc($disabler) . "\n${str}#endif\n";
         } else {
