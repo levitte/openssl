@@ -94,31 +94,40 @@ EOF
         ciphers  => "sock",
         genrsa   => "rsa",
         rsautl   => "rsa",
-        gendsa   => "dsa",
-        gendh    => "dh",
         ecparam  => "ec",
         pkcs12   => "des",
+# TODO(3.0): remove these two lines when the corresponding apps are deprecated
+        gendsa   => "dsa",
+        gendh    => "dh",
     );
     my %cmd_deprecated = (
-        dsaparam => [ "3_0", "dsa"],
-        dhparam  => [ "3_0", "dh"],
+        dhparam  => [ "3_0", "pkeyparam", "dh" ],
+        dsaparam => [ "3_0", "pkeyparam", "dsa" ],
+# TODO(3.0): uncomment these four when the corresponding apps are deprecated
+#        dh       => [ "3_0", "pkey",      "dh"  ],
+#        dsa      => [ "3_0", "pkey",      "dsa" ],
+#        gendh    => [ "3_0", "genpkey",   "dh"  ],
+#        gendsa   => [ "3_0", "genpkey",   "dsa" ],
     );
 
     print "FUNCTION functions[] = {\n";
     foreach my $cmd ( @ARGV ) {
         my $str =
-            "    {FT_general, \"$cmd\", ${cmd}_main, ${cmd}_options},\n";
+            "    {FT_general, \"$cmd\", ${cmd}_main, ${cmd}_options, NULL},\n";
         if ($cmd =~ /^s_/) {
             print "#ifndef OPENSSL_NO_SOCK\n${str}#endif\n";
+        } elsif (my $deprecated = $cmd_deprecated{$cmd}) {
+            my @dep = @{$deprecated};
+            print "#if ";
+            if ($dep[2]) {
+                print "!defined(OPENSSL_NO_" . uc($dep[2]) . ") && ";
+            }
+            print "!defined(OPENSSL_NO_DEPRECATED_" . $dep[0] . ")";
+            my $dalt = "\"" . $dep[1] . "\"";
+            $str =~ s/NULL/$dalt/;
+            print "\n${str}#endif\n";
         } elsif (grep { $cmd eq $_ } @disablables) {
             print "#ifndef OPENSSL_NO_" . uc($cmd) . "\n${str}#endif\n";
-        } elsif (my $deprecated = $cmd_deprecated{$cmd}) {
-            print "#if ";
-            if (@{$deprecated}[1]) {
-                print "!defined(OPENSSL_NO_" . uc(@{$deprecated}[1]) . ") && ";
-            }
-            print "!defined(OPENSSL_NO_DEPRECATED_" . @{$deprecated}[0] . ")";
-            print "\n${str}#endif\n";
         } elsif (my $disabler = $cmd_disabler{$cmd}) {
             print "#ifndef OPENSSL_NO_" . uc($disabler) . "\n${str}#endif\n";
         } else {
@@ -130,6 +139,12 @@ EOF
         blake2b512 => "blake2",
         blake2s256 => "blake2",
     );
+    my %md_deprecated = (
+        md2 =>      [ "3_0", "md2" ],
+        md4  =>     [ "3_0", "md4" ],
+        mdc2 =>     [ "3_0", "mdc2" ],
+        rmd160 =>   [ "3_0", "rmd160" ],
+    );
     foreach my $cmd (
         "md2", "md4", "md5",
         "gost",
@@ -140,8 +155,17 @@ EOF
         "mdc2", "rmd160", "blake2b512", "blake2s256",
         "sm3"
     ) {
-        my $str = "    {FT_md, \"$cmd\", dgst_main},\n";
-        if (grep { $cmd eq $_ } @disablables) {
+        my $str = "    {FT_md, \"$cmd\", dgst_main, NULL, NULL},\n";
+        if (my $deprecated = $md_deprecated{$cmd}) {
+            my @dep = @{$deprecated};
+            print "#if ";
+            if ($dep[1]) {
+                print "!defined(OPENSSL_NO_" . uc($dep[1]) . ") && ";
+            }
+            print "!defined(OPENSSL_NO_DEPRECATED_" . $dep[0] . ")";
+            $str =~ s/^(.*) NULL/$1 DEPRECATED_NO_ALTERNATIVE/;
+            print "\n${str}#endif\n";
+        } elsif (grep { $cmd eq $_ } @disablables) {
             print "#ifndef OPENSSL_NO_" . uc($cmd) . "\n${str}#endif\n";
         } elsif (my $disabler = $md_disabler{$cmd}) {
             print "#ifndef OPENSSL_NO_" . uc($disabler) . "\n${str}#endif\n";
@@ -152,8 +176,53 @@ EOF
 
     my %cipher_disabler = (
         des3  => "des",
-        desx  => "des",
-        cast5 => "cast",
+    );
+    my %cipher_deprecated = (
+        "des" =>         [ "3_0", "des" ],
+        "idea" =>        [ "3_0", "idea" ],
+        "seed" =>        [ "3_0", "seed" ],
+        "rc4" =>         [ "3_0", "rc4" ],
+        "rc4-40" =>      [ "3_0", "rc4" ],
+        "rc2" =>         [ "3_0", "rc2" ],
+        "bf" =>          [ "3_0", "bf" ],
+        "cast" =>        [ "3_0", "cast" ],
+        "rc5" =>         [ "3_0", "rc5" ],
+        "idea-cbc" =>    [ "3_0", "idea" ],
+        "idea-ecb" =>    [ "3_0", "idea" ],
+        "idea-cfb" =>    [ "3_0", "idea" ],
+        "idea-ofb" =>    [ "3_0", "idea" ],
+        "seed-cbc" =>    [ "3_0", "seed" ],
+        "seed-ecb" =>    [ "3_0", "seed" ],
+        "seed-cfb" =>    [ "3_0", "seed" ],
+        "seed-ofb" =>    [ "3_0", "seed" ],
+        "rc2-cbc" =>     [ "3_0", "rc2" ],
+        "rc2-ecb" =>     [ "3_0", "rc2" ],
+        "rc2-cfb" =>     [ "3_0", "rc2" ],
+        "rc2-ofb" =>     [ "3_0", "rc2" ],
+        "rc2-64-cbc" =>  [ "3_0", "rc2" ],
+        "rc2-40-cbc" =>  [ "3_0", "rc2" ],
+        "bf-cbc" =>      [ "3_0", "bf" ],
+        "bf-ecb" =>      [ "3_0", "bf" ],
+        "bf-cfb" =>      [ "3_0", "bf" ],
+        "bf-ofb" =>      [ "3_0", "bf" ],
+        "cast5-cbc" =>   [ "3_0", "cast" ],
+        "cast5-ecb" =>   [ "3_0", "cast" ],
+        "cast5-cfb" =>   [ "3_0", "cast" ],
+        "cast5-ofb" =>   [ "3_0", "cast" ],
+        "cast-cbc" =>    [ "3_0", "cast" ],
+        "rc5-cbc" =>     [ "3_0", "rc5" ],
+        "rc5-ecb" =>     [ "3_0", "rc5" ],
+        "rc5-cfb" =>     [ "3_0", "rc5" ],
+        "rc5-ofb" =>     [ "3_0", "rc5" ],
+        "des-ecb" =>     [ "3_0", "des" ],
+        "des-ede" =>     [ "3_0", "des" ],
+        "des-cbc" =>     [ "3_0", "des" ],
+        "des-ede-cbc" => [ "3_0", "des" ],
+        "des-cfb" =>     [ "3_0", "des" ],
+        "des-ede-cfb" => [ "3_0", "des" ],
+        "des-ofb" =>     [ "3_0", "des" ],
+        "des-ede-ofb" => [ "3_0", "des" ],
+        "desx" =>        [ "3_0", "des" ],
     );
     foreach my $cmd (
         "aes-128-cbc", "aes-128-ecb",
@@ -186,10 +255,19 @@ EOF
         "cast-cbc", "rc5-cbc", "rc5-ecb", "rc5-cfb", "rc5-ofb",
         "sm4-cbc", "sm4-ecb", "sm4-cfb", "sm4-ofb", "sm4-ctr"
     ) {
-        my $str = "    {FT_cipher, \"$cmd\", enc_main, enc_options},\n";
+        my $str = "    {FT_cipher, \"$cmd\", enc_main, enc_options, NULL},\n";
         (my $algo = $cmd) =~ s/-.*//g;
         if ($cmd eq "zlib") {
             print "#ifdef ZLIB\n${str}#endif\n";
+        } elsif (my $deprecated = $cipher_deprecated{$cmd}) {
+            my @dep = @{$deprecated};
+            print "#if ";
+            if ($dep[1]) {
+                print "!defined(OPENSSL_NO_" . uc($dep[1]) . ") && ";
+            }
+            print "!defined(OPENSSL_NO_DEPRECATED_" . $dep[0] . ")";
+            $str =~ s/NULL/DEPRECATED_NO_ALTERNATIVE/;
+            print "\n${str}#endif\n";
         } elsif (grep { $algo eq $_ } @disablables) {
             print "#ifndef OPENSSL_NO_" . uc($algo) . "\n${str}#endif\n";
         } elsif (my $disabler = $cipher_disabler{$algo}) {
@@ -199,5 +277,5 @@ EOF
         }
     }
 
-    print "    {0, NULL, NULL}\n};\n";
+    print "    {0, NULL, NULL, 0}\n};\n";
 }
