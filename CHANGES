@@ -25,19 +25,6 @@
      deprecated.  Instead use the pkeyparam program.
      [Paul Dale]
 
-  *) Reworked the treatment of EC EVP_PKEYs with the SM2 curve to
-     automatically become EVP_PKEY_SM2 rather than EVP_PKEY_EC.
-     This means that applications don't have to look at the curve NID and
-     'EVP_PKEY_set_alias_type(pkey, EVP_PKEY_SM2)' to get SM2 computations.
-     However, they still can, that EVP_PKEY_set_alias_type() call acts as
-     a no-op when the EVP_PKEY is already of the given type.
-
-     Parameter and key generation is also reworked to make it possible
-     to generate EVP_PKEY_SM2 parameters and keys without having to go
-     through EVP_PKEY_EC generation and then change the EVP_PKEY type.
-     However, code that does the latter will still work as before.
-     [Richard Levitte]
-
   *) All of the low level DSA functions have been deprecated including:
 
      DSA_do_sign, DSA_do_verify, DSA_OpenSSL, DSA_set_default_method,
