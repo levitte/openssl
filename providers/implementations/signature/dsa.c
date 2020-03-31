@@ -30,6 +30,7 @@
 #include "prov/providercommonerr.h"
 #include "prov/provider_ctx.h"
 #include "crypto/dsa.h"
+#include "prov/der_dsa.h"
 
 static OSSL_OP_signature_newctx_fn dsa_newctx;
 static OSSL_OP_signature_sign_init_fn dsa_signature_init;
@@ -74,7 +75,8 @@ typedef struct {
     char mdname[OSSL_MAX_NAME_SIZE];
 
     /* The Algorithm Identifier of the combined signature algorithm */
-    unsigned char aid[OSSL_MAX_ALGORITHM_ID_SIZE];
+    unsigned char aid_buf[OSSL_MAX_ALGORITHM_ID_SIZE];
+    unsigned char *aid;
     size_t  aid_len;
 
     /* main digest */
@@ -146,25 +148,22 @@ static int dsa_setup_md(PROV_DSA_CTX *ctx,
     if (mdname != NULL) {
         EVP_MD *md = EVP_MD_fetch(ctx->libctx, mdname, mdprops);
         int md_nid = dsa_get_md_nid(md);
-        size_t algorithmidentifier_len = 0;
-        const unsigned char *algorithmidentifier;
 
-        EVP_MD_free(ctx->md);
-        ctx->md = NULL;
-        ctx->mdname[0] = '\0';
-
-        algorithmidentifier =
-            dsa_algorithmidentifier_encoding(md_nid, &algorithmidentifier_len);
-
-        if (algorithmidentifier == NULL) {
-            EVP_MD_free(md);
+        if (md == NULL)
             return 0;
-        }
 
+        EVP_MD_CTX_free(ctx->mdctx);
+        EVP_MD_free(ctx->md);
+
+        ctx->mdctx = NULL;
         ctx->md = md;
         OPENSSL_strlcpy(ctx->mdname, mdname, sizeof(ctx->mdname));
-        memcpy(ctx->aid, algorithmidentifier, algorithmidentifier_len);
-        ctx->aid_len = algorithmidentifier_len;
+
+
+        ctx->aid = &ctx->aid_buf[sizeof(ctx->aid_buf)];
+        ctx->aid_len = DER_w_algorithmIdentifier_DSA_with(&ctx->aid,
+                                                          ctx->aid_buf,
+                                                          ctx->dsa, md_nid);
     }
     return 1;
 }
