@@ -28,6 +28,7 @@
 #include "prov/providercommonerr.h"
 #include "prov/implementations.h"
 #include "prov/provider_ctx.h"
+#include "prov/der_rsa.h"
 
 static OSSL_OP_signature_newctx_fn rsa_newctx;
 static OSSL_OP_signature_sign_init_fn rsa_signature_init;
@@ -83,7 +84,8 @@ typedef struct {
     unsigned int flag_allow_md : 1;
 
     /* The Algorithm Identifier of the combined signature agorithm */
-    unsigned char aid[128];
+    unsigned char aid_buf[128];
+    unsigned char *aid;
     size_t  aid_len;
 
     /* main digest */
@@ -216,8 +218,6 @@ static int rsa_setup_md(PROV_RSA_CTX *ctx, const char *mdname,
     if (mdname != NULL) {
         EVP_MD *md = EVP_MD_fetch(ctx->libctx, mdname, mdprops);
         int md_nid = rsa_get_md_nid(md);
-        size_t algorithmidentifier_len = 0;
-        const unsigned char *algorithmidentifier = NULL;
 
         if (md == NULL)
             return 0;
@@ -229,22 +229,16 @@ static int rsa_setup_md(PROV_RSA_CTX *ctx, const char *mdname,
 
         EVP_MD_CTX_free(ctx->mdctx);
         EVP_MD_free(ctx->md);
-        ctx->md = NULL;
+
         ctx->mdctx = NULL;
-        ctx->mdname[0] = '\0';
-        ctx->aid[0] = '\0';
-        ctx->aid_len = 0;
-
-        algorithmidentifier =
-            rsa_algorithmidentifier_encoding(md_nid, &algorithmidentifier_len);
-
         ctx->md = md;
         ctx->mdnid = md_nid;
         OPENSSL_strlcpy(ctx->mdname, mdname, sizeof(ctx->mdname));
-        if (algorithmidentifier != NULL) {
-            memcpy(ctx->aid, algorithmidentifier, algorithmidentifier_len);
-            ctx->aid_len = algorithmidentifier_len;
-        }
+
+        ctx->aid = &ctx->aid_buf[sizeof(ctx->aid_buf)];
+        ctx->aid_len = DER_w_algorithmIdentifier_RSA_with(&ctx->aid,
+                                                          ctx->aid_buf,
+                                                          ctx->rsa, md_nid);
     }
 
     return 1;
