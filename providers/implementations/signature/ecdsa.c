@@ -27,7 +27,7 @@
 #include "prov/implementations.h"
 #include "prov/provider_ctx.h"
 #include "crypto/ec.h"
-#include "prov/der_ecdsa.h"
+#include "prov/der_ec.h"
 
 static OSSL_OP_signature_newctx_fn ecdsa_newctx;
 static OSSL_OP_signature_sign_init_fn ecdsa_signature_init;
