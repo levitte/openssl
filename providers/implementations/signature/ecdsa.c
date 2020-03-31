@@ -27,6 +27,7 @@
 #include "prov/implementations.h"
 #include "prov/provider_ctx.h"
 #include "crypto/ec.h"
+#include "prov/der_ecdsa.h"
 
 static OSSL_OP_signature_newctx_fn ecdsa_newctx;
 static OSSL_OP_signature_sign_init_fn ecdsa_signature_init;
@@ -62,7 +63,8 @@ typedef struct {
     char mdname[OSSL_MAX_NAME_SIZE];
 
     /* The Algorithm Identifier of the combined signature algorithm */
-    unsigned char aid[OSSL_MAX_ALGORITHM_ID_SIZE];
+    unsigned char aid_buf[OSSL_MAX_ALGORITHM_ID_SIZE];
+    unsigned char *aid;
     size_t  aid_len;
     size_t mdsize;
 
@@ -203,8 +205,6 @@ static int ecdsa_digest_signverify_init(void *vctx, const char *mdname,
                                         const char *props, void *ec)
 {
     PROV_ECDSA_CTX *ctx = (PROV_ECDSA_CTX *)vctx;
-    size_t algorithmidentifier_len = 0;
-    const unsigned char *algorithmidentifier;
 
     free_md(ctx);
 
@@ -212,19 +212,18 @@ static int ecdsa_digest_signverify_init(void *vctx, const char *mdname,
         return 0;
 
     ctx->md = EVP_MD_fetch(ctx->libctx, mdname, props);
-    algorithmidentifier =
-        ecdsa_algorithmidentifier_encoding(get_md_nid(ctx->md),
-                                           &algorithmidentifier_len);
-    if (algorithmidentifier == NULL)
-        goto error;
-
     ctx->mdsize = EVP_MD_size(ctx->md);
     ctx->mdctx = EVP_MD_CTX_new();
     if (ctx->mdctx == NULL)
         goto error;
 
-    memcpy(ctx->aid, algorithmidentifier, algorithmidentifier_len);
-    ctx->aid_len = algorithmidentifier_len;
+    ctx->aid = &ctx->aid_buf[sizeof(ctx->aid_buf)];
+    ctx->aid_len = DER_w_algorithmIdentifier_ECDSA_with(&ctx->aid,
+                                                        ctx->aid_buf,
+                                                        ctx->ec,
+                                                        get_md_nid(ctx->md));
+    if (ctx->aid_len == 0)
+        goto error;
 
     if (!EVP_DigestInit_ex(ctx->mdctx, ctx->md, NULL))
         goto error;
