@@ -90,6 +90,9 @@ my $identifier_re = qr/[a-z](?:[-_A-Za-z0-9]*[A-Za-z0-9])?/;
 # the separator in the top branch.  Each component is always parsed in two
 # groups, so we get a pair of values regardless.  That's the reason for the
 # empty parentheses.
+# Because perl doesn't try to do an exhaustive try of every branch ut rather
+# stops on the first that matches, we need to have them in order of longest
+# to shortest where there may be ambiguity.
 my $objcomponent_re = qr/(?|
                              (${identifier_re}) \s* \((\d+)\)
                          |
@@ -98,9 +101,9 @@ my $objcomponent_re = qr/(?|
                              ()(\d+)
                          )/x;
 my $xmlobjcomponent_re = qr/(?|
-                                (${identifier_re}) ()
-                            |
                                 (${identifier_re}) \. \((\d+)\)
+                            |
+                                (${identifier_re}) ()
                             |
                                 () (\d+)
                             )/x;
@@ -108,7 +111,7 @@ my $xmlobjcomponent_re = qr/(?|
 my $obj_re =
     qr/(?: \{ \s* (?: ${objcomponent_re} \s+ )* ${objcomponent_re} \s* \} )/x;
 my $xmlobj_re =
-    qr/(?: (?: ${objcomponent_re} \. )* ${objcomponent_re} )/x;
+    qr/(?: (?: ${xmlobjcomponent_re} \. )* ${xmlobjcomponent_re} )/x;
 
 ######## NAME TO OID REPOSITORY
 
@@ -284,12 +287,6 @@ sub TEST {
         (
          'pkcs' => '1.2.840.113549',
          'pkcs-1' => 'pkcs.1',
-        );
-
-    %name2oid =
-        (
-         pkcs => [ 1, 2, 840, 113549 ],
-         pkcs1 => [ 1, 2, 840, 113549, 1 ]
         );
 
     my %good_cases =
