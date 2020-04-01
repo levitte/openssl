@@ -46,19 +46,6 @@
 #define DER_C_CONTEXT                0x80
 #define DER_C_PRIVATE                0xC0
 
-/* Helper macros */
-#define CHECKEDret(l, r, f)                     \
-    do {                                        \
-        (r) = (f);                              \
-        if ((r) == 0) return (r);                \
-        (l) += (r);                             \
-    } while (0)
-#define CHECKED(l, f)                           \
-    do {                                        \
-        int __der_ret;                          \
-        CHECKEDret((l), __der_ret, (f));        \
-    } while (0)
-
 /*
  * Run-time constructors.
  *
