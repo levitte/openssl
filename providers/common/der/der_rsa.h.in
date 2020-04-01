@@ -11,7 +11,7 @@
 
 /* Well known OIDs precompiled */
 {-
-    $OUT = oids_to_c::process_leaves('providers/common/der/DSA.asn1',
+    $OUT = oids_to_c::process_leaves('providers/common/der/RSA.asn1',
                                      { dir => $config{sourcedir},
                                        filter => \&oids_to_c::filter_to_H });
 -}
