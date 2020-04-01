@@ -18,17 +18,16 @@
                                        filter => \&oids_to_c::filter_to_C });
 -}
 
-size_t DER_w_algorithmIdentifier_RSA(unsigned char **pp,
-                                     const unsigned char *start,
-                                     RSA *rsa)
+int DER_w_algorithmIdentifier_RSA(unsigned char **pp, size_t *cnt,
+                                  const unsigned char *start,
+                                  RSA *rsa)
 {
-    size_t a = 0;
-
-    CHECKED(a, DER_w_null(pp, start));
-    CHECKED(a, DER_w_precompiled(pp, start, der_oid_rsaEncryption,
-                                 sizeof(der_oid_rsaEncryption)));
-    CHECKED(a, DER_w_sequence(pp, start, a));
-    return a;
+    if (!DER_w_null(pp, cnt, start)
+        || !DER_w_precompiled(pp, cnt, start, der_oid_rsaEncryption,
+                              sizeof(der_oid_rsaEncryption))
+        || !DER_w_sequence(pp, cnt, start))
+        return 0;
+    return 1;
 }
 
 /* Aliases so we can have a uniform MD_CASE */
@@ -47,13 +46,12 @@ size_t DER_w_algorithmIdentifier_RSA(unsigned char **pp,
         precompiled_sz = sizeof(der_oid_##name##WithRSAEncryption);     \
         break;
 
-size_t DER_w_algorithmIdentifier_RSA_with(unsigned char **pp,
+int DER_w_algorithmIdentifier_RSA_with(unsigned char **pp, size_t *cnt,
                                           const unsigned char *start,
                                           RSA *rsa, int mdnid)
 {
     const unsigned char *precompiled = NULL;
     size_t precompiled_sz = 0;
-    size_t a = 0;
 
     switch (mdnid) {
 #ifndef FIPS_MODE
@@ -74,7 +72,8 @@ size_t DER_w_algorithmIdentifier_RSA_with(unsigned char **pp,
     }
 
     /* No parameters */
-    CHECKED(a, DER_w_precompiled(pp, start, precompiled, precompiled_sz));
-    CHECKED(a, DER_w_sequence(pp, start, (size_t)a));
-    return a;
+    if (!DER_w_precompiled(pp, cnt, start, precompiled, precompiled_sz)
+        || !DER_w_sequence(pp, cnt, start))
+        return 0;
+    return 1;
 }

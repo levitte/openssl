@@ -219,10 +219,9 @@ static int rsa_setup_md(PROV_RSA_CTX *ctx, const char *mdname,
         EVP_MD *md = EVP_MD_fetch(ctx->libctx, mdname, mdprops);
         int md_nid = rsa_get_md_nid(md);
 
-        if (md == NULL)
-            return 0;
-
-        if (!rsa_check_padding(md_nid, ctx->pad_mode)) {
+        if (md == NULL
+            || md_nid == NID_undef
+            || !rsa_check_padding(md_nid, ctx->pad_mode)) {
             EVP_MD_free(md);
             return 0;
         }
@@ -230,15 +229,23 @@ static int rsa_setup_md(PROV_RSA_CTX *ctx, const char *mdname,
         EVP_MD_CTX_free(ctx->mdctx);
         EVP_MD_free(ctx->md);
 
+        /*
+         * TODO(3.0) Should we care about DER writing errors?
+         * All it really means is that for some reason, there's no
+         * AlgorithmIdentifier to be had (consider RSA with MD5-SHA1),
+         * but the operation itself is still valid, just as long as it's
+         * not used to construct anything that needs an AlgorithmIdentifier.
+         */
+        ctx->aid = &ctx->aid_buf[sizeof(ctx->aid_buf)];
+        if (!DER_w_algorithmIdentifier_RSA_with(&ctx->aid, &ctx->aid_len,
+                                                ctx->aid_buf,
+                                                ctx->rsa, md_nid))
+            ctx->aid_len = 0;
+
         ctx->mdctx = NULL;
         ctx->md = md;
         ctx->mdnid = md_nid;
         OPENSSL_strlcpy(ctx->mdname, mdname, sizeof(ctx->mdname));
-
-        ctx->aid = &ctx->aid_buf[sizeof(ctx->aid_buf)];
-        ctx->aid_len = DER_w_algorithmIdentifier_RSA_with(&ctx->aid,
-                                                          ctx->aid_buf,
-                                                          ctx->rsa, md_nid);
     }
 
     return 1;
