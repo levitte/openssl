@@ -84,42 +84,47 @@ size_t c2_length = 0;
 size_t c1_length = 0;
 size_t c0_length = 0;
 
-CHECKED(c2_length, DER_w_ulong(&p, start, 20));
-CHECKED(c2_length, DER_w_context(&p, start, 2, c2_length));
-
-CHECKED(c1_length, DER_w_precompiled(&p, start, der_oid_sha256,
-                                     sizeof(der_oid_sha256)));
-CHECKED(c1_length, DER_w_sequence(&p, start, c1_length));
-CHECKED(c1_length, DER_w_precompiled(&p, start, der_oid_mgf1,
-                                     sizeof(der_oid_mgf1)));
-CHECKED(c1_length, DER_w_sequence(&p, start, c1_length));
-CHECKED(c1_length, DER_w_context(&p, start, 1, c1_length));
-
-CHECKED(c0_length, DER_w_precompiled(&p, start, der_oid_sha256,
-                                     sizeof(der_oid_sha256)));
-CHECKED(c0_length, DER_w_sequence(&p, start, c0_length));
-
-CHECKED(length, DER_w_sequence(&p, start, c0_length + c1_length + c2_length));
-
-CHECKED(length, DER_w_precompiled(&p, start, der_oid_rsassaPss,
-                                  sizeof(der_oid_rsassaPss)));
-CHECKED(length, DER_w_sequence(&p, start, length));
+if (!DER_w_ulong(&p, &c2_length, start, 20)
+    || !DER_w_context(&p, &c2_length, start, 2)
+    /* ... */
+    || !DER_w_precompiled(&p, &c1_length, start,
+                          der_oid_sha256, sizeof(der_oid_sha256))
+    || !DER_w_sequence(&p, &c1_length, start)
+    || !DER_w_precompiled(&p, &c1_length, start,
+                          der_oid_mgf1, sizeof(der_oid_mgf1))
+    || !DER_w_sequence(&p, &c1_length, start)
+    || !DER_w_context(&p, &c1_length, start, 1)
+    /* ... */
+    || !DER_w_precompiled(&p, &c0_length, start,
+                          der_oid_sha256, sizeof(der_oid_sha256))
+    || !DER_w_sequence(&p, &c0_length, start)
+    /* ... */
+    || !DER_w_sequence_n(&p, &length, start, c0_length + c1_length + c2_length)
+    || !DER_w_precompiled(&p, &length, start,
+                          der_oid_rsassaPss, sizeof(der_oid_rsassaPss))
+    || !DER_w_sequence(&p, &length, start))
+    /* ERROR */ ;
 
 /* At this point, |p| is the start of the DER blob and |length| is its length */
 
 #endif
 
-size_t DER_w_precompiled(unsigned char **pp, const unsigned char *start,
-                       const unsigned char *precompiled, size_t precompiled_n);
+int DER_w_precompiled(unsigned char **pp, size_t *cnt,
+                      const unsigned char *start,
+                      const unsigned char *precompiled, size_t precompiled_n);
 
-size_t DER_w_boolean(unsigned char **pp, const unsigned char *start,
-                     int b);
-size_t DER_w_ulong(unsigned char **pp, const unsigned char *start,
-                 unsigned long v);
-size_t DER_w_bn(unsigned char **pp, const unsigned char *start,
+int DER_w_boolean(unsigned char **pp, size_t *cnt, const unsigned char *start,
+                  int b);
+int DER_w_ulong(unsigned char **pp, size_t *cnt, const unsigned char *start,
+                unsigned long v);
+int DER_w_bn(unsigned char **pp, size_t *cnt, const unsigned char *start,
                 BIGNUM *v);
-size_t DER_w_null(unsigned char **pp, const unsigned char *start);
-size_t DER_w_sequence(unsigned char **pp, const unsigned char *start,
-                      size_t n);
-size_t DER_w_context(unsigned char **pp, const unsigned char *start,
-                     int num, size_t length);
+int DER_w_null(unsigned char **pp, size_t *cnt, const unsigned char *start);
+int DER_w_sequence(unsigned char **pp, size_t *cnt, const unsigned char *start);
+int DER_w_sequence_n(unsigned char **pp, size_t *cnt,
+                     const unsigned char *start,
+                     size_t n);
+int DER_w_context(unsigned char **pp, size_t *cnt, const unsigned char *start,
+                  int num);
+int DER_w_context_n(unsigned char **pp, size_t *cnt, const unsigned char *start,
+                    int num, size_t n);
