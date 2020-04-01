@@ -8,10 +8,10 @@
 
 use strict;
 use warnings;
-use Carp;
 
 package oids_to_c;
 
+use Carp;
 use File::Spec;
 use OpenSSL::OID;
 
@@ -47,7 +47,7 @@ sub filter_to_C {
     (my $C_comment = $comment) =~ s|^| * |msg;
     $C_comment = "\n/*\n${C_comment}\n */" if $C_comment ne '';
     (my $C_name = $name) =~ s|-|_|g;
-    my $C_bytes_size = 2 + scalar @_;
+    my $C_bytes_size = 2 + $oid_size;
     my $C_bytes = join(', ', map { sprintf("0x%02X", $_) } @oid_nums );
 
     return <<"_____";
