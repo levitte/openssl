@@ -18,17 +18,16 @@
                                        filter => \&oids_to_c::filter_to_C });
 -}
 
-size_t DER_w_algorithmIdentifier_DSA(unsigned char **pp,
-                                     const unsigned char *start,
-                                     DSA *dsa)
+int DER_w_algorithmIdentifier_DSA(unsigned char **pp, size_t *cnt,
+                                  const unsigned char *start,
+                                  DSA *dsa)
 {
-    size_t a = 0;
-
-    /* No parameters */
-    CHECKED(a, DER_w_precompiled(pp, start, der_oid_id_dsa,
-                                 sizeof(der_oid_id_dsa)));
-    CHECKED(a, DER_w_sequence(pp, start, a));
-    return a;
+    /* No parameters (yet?) */
+    if (!DER_w_precompiled(pp, cnt, start, der_oid_id_dsa,
+                           sizeof(der_oid_id_dsa))
+        || !DER_w_sequence(pp, cnt, start))
+        return 0;
+    return 1;
 }
 
 #define MD_CASE(name)                                                   \
@@ -37,13 +36,12 @@ size_t DER_w_algorithmIdentifier_DSA(unsigned char **pp,
         precompiled_sz = sizeof(der_oid_id_dsa_with_##name);     \
         break;
 
-size_t DER_w_algorithmIdentifier_DSA_with(unsigned char **pp,
-                                          const unsigned char *start,
-                                          DSA *dsa, int mdnid)
+int DER_w_algorithmIdentifier_DSA_with(unsigned char **pp, size_t *cnt,
+                                       const unsigned char *start,
+                                       DSA *dsa, int mdnid)
 {
     const unsigned char *precompiled = NULL;
     size_t precompiled_sz = 0;
-    size_t a = 0;
 
     switch (mdnid) {
         MD_CASE(sha1);
@@ -60,7 +58,8 @@ size_t DER_w_algorithmIdentifier_DSA_with(unsigned char **pp,
     }
 
     /* No parameters */
-    CHECKED(a, DER_w_precompiled(pp, start, precompiled, precompiled_sz));
-    CHECKED(a, DER_w_sequence(pp, start, (size_t)a));
-    return a;
+    if (!DER_w_precompiled(pp, cnt, start, precompiled, precompiled_sz)
+        || !DER_w_sequence(pp, cnt, start))
+        return 0;
+    return 1;
 }
