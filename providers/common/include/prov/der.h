@@ -55,7 +55,8 @@
 
 #if 0                        /* Example code should not be compiled */
 
-/* Example:
+/*
+ * Example:
  * To build the RSASSA-PSS AlgorithmIndentifier with the restrictions
  * hashAlgorithm = SHA256, maskGenAlgorithm = mgf1SHA256, saltLength = 20,
  * this is the expected code:
