@@ -8,6 +8,7 @@
 
 use strict;
 use warnings;
+use Carp;
 
 package oids_to_c;
 
@@ -40,6 +41,8 @@ sub filter_to_C {
     my ($name, $comment) = @{ shift() };
     my @oid_nums = @_;
     my $oid_size = scalar @oid_nums;
+
+    croak "Unsupported OID size (>127 bytes)" if $oid_size > 127;
 
     (my $C_comment = $comment) =~ s|^| * |msg;
     $C_comment = "\n/*\n${C_comment}\n */" if $C_comment ne '';
