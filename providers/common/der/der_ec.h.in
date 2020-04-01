@@ -16,9 +16,9 @@
                                        filter => \&oids_to_c::filter_to_H });
 -}
 
-size_t DER_w_algorithmIdentifier_EC(unsigned char **pp,
-                                    const unsigned char *start,
-                                    EC_KEY *ec);
-size_t DER_w_algorithmIdentifier_ECDSA_with(unsigned char **pp,
-                                            const unsigned char *start,
-                                            EC_KEY *ec, int mdnid);
+int DER_w_algorithmIdentifier_EC(unsigned char **pp, size_t *cnt,
+                                 const unsigned char *start,
+                                 EC_KEY *ec);
+int DER_w_algorithmIdentifier_ECDSA_with(unsigned char **pp, size_t *cnt,
+                                         const unsigned char *start,
+                                         EC_KEY *ec, int mdnid);

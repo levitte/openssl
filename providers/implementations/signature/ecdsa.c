@@ -23,6 +23,7 @@
 #include <openssl/err.h>
 #include "internal/nelem.h"
 #include "internal/sizes.h"
+#include "internal/cryptlib.h"
 #include "prov/providercommonerr.h"
 #include "prov/implementations.h"
 #include "prov/provider_ctx.h"
@@ -205,6 +206,7 @@ static int ecdsa_digest_signverify_init(void *vctx, const char *mdname,
                                         const char *props, void *ec)
 {
     PROV_ECDSA_CTX *ctx = (PROV_ECDSA_CTX *)vctx;
+    int md_nid = NID_undef;
 
     free_md(ctx);
 
@@ -212,18 +214,26 @@ static int ecdsa_digest_signverify_init(void *vctx, const char *mdname,
         return 0;
 
     ctx->md = EVP_MD_fetch(ctx->libctx, mdname, props);
+    if ((md_nid = get_md_nid(ctx->md)) == NID_undef)
+        goto error;
+
     ctx->mdsize = EVP_MD_size(ctx->md);
     ctx->mdctx = EVP_MD_CTX_new();
     if (ctx->mdctx == NULL)
         goto error;
 
+    /*
+     * TODO(3.0) Should we care about DER writing errors?
+     * All it really means is that for some reason, there's no
+     * AlgorithmIdentifier to be had, but the operation itself is
+     * still valid, just as long as it's not used to construct
+     * anything that needs an AlgorithmIdentifier.
+     */
     ctx->aid = &ctx->aid_buf[sizeof(ctx->aid_buf)];
-    ctx->aid_len = DER_w_algorithmIdentifier_ECDSA_with(&ctx->aid,
-                                                        ctx->aid_buf,
-                                                        ctx->ec,
-                                                        get_md_nid(ctx->md));
-    if (ctx->aid_len == 0)
-        goto error;
+    if (!DER_w_algorithmIdentifier_ECDSA_with(&ctx->aid, &ctx->aid_len,
+                                              ctx->aid_buf,
+                                              ctx->ec, md_nid))
+        ctx->aid_len = 0;
 
     if (!EVP_DigestInit_ex(ctx->mdctx, ctx->md, NULL))
         goto error;
