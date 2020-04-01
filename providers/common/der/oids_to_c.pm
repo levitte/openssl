@@ -32,7 +32,7 @@ sub filter_to_H {
     my $C_bytes_size = 2 + scalar @_;
 
     return <<"_____";
-const unsigned char der_oid_${C_name}[$C_bytes_size];
+extern const unsigned char der_oid_${C_name}[$C_bytes_size];
 _____
 }
 
