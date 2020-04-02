@@ -18,16 +18,13 @@
                                        filter => \&oids_to_c::filter_to_C });
 -}
 
-int DER_w_algorithmIdentifier_RSA(unsigned char **pp, size_t *cnt,
-                                  const unsigned char *start,
-                                  RSA *rsa)
+int DER_w_algorithmIdentifier_RSA(WPACKET *pkt, int cont, RSA *rsa)
 {
-    if (!DER_w_null(pp, cnt, start)
-        || !DER_w_precompiled(pp, cnt, start, der_oid_rsaEncryption,
-                              sizeof(der_oid_rsaEncryption))
-        || !DER_w_sequence(pp, cnt, start))
-        return 0;
-    return 1;
+    return DER_w_start_sequence(pkt, cont)
+        /* No parameters (yet?) */
+        && DER_w_precompiled(pkt, -1, der_oid_rsaEncryption,
+                             sizeof(der_oid_rsaEncryption))
+        && DER_w_end_sequence(pkt, cont);
 }
 
 /* Aliases so we can have a uniform MD_CASE */
@@ -46,9 +43,8 @@ int DER_w_algorithmIdentifier_RSA(unsigned char **pp, size_t *cnt,
         precompiled_sz = sizeof(der_oid_##name##WithRSAEncryption);     \
         break;
 
-int DER_w_algorithmIdentifier_RSA_with(unsigned char **pp, size_t *cnt,
-                                          const unsigned char *start,
-                                          RSA *rsa, int mdnid)
+int DER_w_algorithmIdentifier_RSA_with(WPACKET *pkt, int cont,
+                                       RSA *rsa, int mdnid)
 {
     const unsigned char *precompiled = NULL;
     size_t precompiled_sz = 0;
@@ -71,9 +67,8 @@ int DER_w_algorithmIdentifier_RSA_with(unsigned char **pp, size_t *cnt,
         return 0;
     }
 
-    /* No parameters */
-    if (!DER_w_precompiled(pp, cnt, start, precompiled, precompiled_sz)
-        || !DER_w_sequence(pp, cnt, start))
-        return 0;
-    return 1;
+    return DER_w_start_sequence(pkt, cont)
+        /* No parameters (yet?) */
+        && DER_w_precompiled(pkt, -1, precompiled, precompiled_sz)
+        && DER_w_end_sequence(pkt, cont);
 }
