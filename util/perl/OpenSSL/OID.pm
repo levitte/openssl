@@ -90,7 +90,7 @@ my $identifier_re = qr/[a-z](?:[-_A-Za-z0-9]*[A-Za-z0-9])?/;
 # the separator in the top branch.  Each component is always parsed in two
 # groups, so we get a pair of values regardless.  That's the reason for the
 # empty parentheses.
-# Because perl doesn't try to do an exhaustive try of every branch ut rather
+# Because perl doesn't try to do an exhaustive try of every branch it rather
 # stops on the first that matches, we need to have them in order of longest
 # to shortest where there may be ambiguity.
 my $objcomponent_re = qr/(?|
