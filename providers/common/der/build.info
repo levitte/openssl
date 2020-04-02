@@ -1,5 +1,3 @@
-SOURCE[../../libcommon.a]=der_writer.c
-
 $FIPSABLE=der_rsa.c der_dsa.c der_ec.c
 
 SOURCE[../../libfips.a]=$FIPSABLE
