@@ -76,16 +76,12 @@ if (!DER_w_ulong(&p, &c2_length, start, 20)
     || !DER_w_context(&p, &c2_length, start, 2)
     /* ... */
     || !DER_w_precompiled(&p, &c1_length, start,
-                          der_oid_sha256, sizeof(der_oid_sha256))
-    || !DER_w_sequence(&p, &c1_length, start)
-    || !DER_w_precompiled(&p, &c1_length, start,
                           der_oid_mgf1, sizeof(der_oid_mgf1))
-    || !DER_w_sequence(&p, &c1_length, start)
     || !DER_w_context(&p, &c1_length, start, 1)
     /* ... */
     || !DER_w_precompiled(&p, &c0_length, start,
                           der_oid_sha256, sizeof(der_oid_sha256))
-    || !DER_w_sequence(&p, &c0_length, start)
+    || !DER_w_context(&p, &c0_length, start, 0)
     /* ... */
     || !DER_w_sequence_n(&p, &length, start, c0_length + c1_length + c2_length)
     || !DER_w_precompiled(&p, &length, start,
