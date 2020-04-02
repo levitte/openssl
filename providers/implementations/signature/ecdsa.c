@@ -207,6 +207,7 @@ static int ecdsa_digest_signverify_init(void *vctx, const char *mdname,
 {
     PROV_ECDSA_CTX *ctx = (PROV_ECDSA_CTX *)vctx;
     int md_nid = NID_undef;
+    WPACKET pkt;
 
     free_md(ctx);
 
@@ -229,11 +230,13 @@ static int ecdsa_digest_signverify_init(void *vctx, const char *mdname,
      * still valid, just as long as it's not used to construct
      * anything that needs an AlgorithmIdentifier.
      */
-    ctx->aid = &ctx->aid_buf[sizeof(ctx->aid_buf)];
-    if (!DER_w_algorithmIdentifier_ECDSA_with(&ctx->aid, &ctx->aid_len,
-                                              ctx->aid_buf,
-                                              ctx->ec, md_nid))
-        ctx->aid_len = 0;
+    ctx->aid_len = 0;
+    if (WPACKET_init_der(&pkt, ctx->aid_buf, sizeof(ctx->aid_buf))
+        && DER_w_algorithmIdentifier_ECDSA_with(&pkt, -1, ctx->ec, md_nid)
+        && WPACKET_finish(&pkt)) {
+        WPACKET_get_total_written(&pkt, &ctx->aid_len);
+        ctx->aid = WPACKET_get_curr(&pkt);
+    }
 
     if (!EVP_DigestInit_ex(ctx->mdctx, ctx->md, NULL))
         goto error;

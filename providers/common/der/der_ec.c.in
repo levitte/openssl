@@ -18,16 +18,13 @@
                                        filter => \&oids_to_c::filter_to_C });
 -}
 
-int DER_w_algorithmIdentifier_EC(unsigned char **pp, size_t *cnt,
-                                 const unsigned char *start,
-                                 EC_KEY *ec)
+int DER_w_algorithmIdentifier_EC(WPACKET *pkt, int cont, EC_KEY *ec)
 {
-    /* No parameters (yet) */
-    if (!DER_w_precompiled(pp, cnt, start, der_oid_id_ecPublicKey,
-                           sizeof(der_oid_id_ecPublicKey))
-        || !DER_w_sequence(pp, cnt, start))
-        return 0;
-    return 1;
+    return DER_w_start_sequence(pkt, cont)
+        /* No parameters (yet?) */
+        && DER_w_precompiled(pkt, -1, der_oid_id_ecPublicKey,
+                             sizeof(der_oid_id_ecPublicKey))
+        && DER_w_end_sequence(pkt, cont);
 }
 
 /* Aliases so we can have a uniform MD_CASE */
@@ -43,8 +40,7 @@ int DER_w_algorithmIdentifier_EC(unsigned char **pp, size_t *cnt,
         precompiled_sz = sizeof(der_oid_id_ecdsa_with_##name);          \
         break;
 
-int DER_w_algorithmIdentifier_ECDSA_with(unsigned char **pp, size_t *cnt,
-                                         const unsigned char *start,
+int DER_w_algorithmIdentifier_ECDSA_with(WPACKET *pkt, int cont,
                                          EC_KEY *ec, int mdnid)
 {
     const unsigned char *precompiled = NULL;
@@ -64,9 +60,8 @@ int DER_w_algorithmIdentifier_ECDSA_with(unsigned char **pp, size_t *cnt,
         return 0;
     }
 
-    /* No parameters */
-    if (!DER_w_precompiled(pp, cnt, start, precompiled, precompiled_sz)
-        || !DER_w_sequence(pp, cnt, start))
-        return 0;
-    return 1;
+    return DER_w_start_sequence(pkt, cont)
+        /* No parameters (yet?) */
+        && DER_w_precompiled(pkt, -1, precompiled, precompiled_sz)
+        && DER_w_end_sequence(pkt, cont);
 }
