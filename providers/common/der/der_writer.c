@@ -24,7 +24,9 @@ static int int_der_alloc(unsigned char **pp, size_t *cnt,
                          size_t n)
 {
     if (pp != NULL) {
-        if (*pp - n < start)
+        /* TODO(3.0) Double check pointer diffs on VMS */
+        if (*pp - start < 0
+            || (size_t)(*pp - start) < n)
             return 0;
         *pp -= n;
     }
