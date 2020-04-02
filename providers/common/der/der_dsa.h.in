@@ -7,7 +7,7 @@
  * https://www.openssl.org/source/license.html
  */
 
-#include "prov/der.h"
+#include "internal/der.h"
 
 /* Well known OIDs precompiled */
 {-
@@ -16,9 +16,6 @@
                                        filter => \&oids_to_c::filter_to_H });
 -}
 
-int DER_w_algorithmIdentifier_DSA(unsigned char **pp, size_t *cnt,
-                                  const unsigned char *start,
-                                  DSA *dsa);
-int DER_w_algorithmIdentifier_DSA_with(unsigned char **pp, size_t *cnt,
-                                       const unsigned char *start,
+int DER_w_algorithmIdentifier_DSA(WPACKET *pkt, int cont, DSA *dsa);
+int DER_w_algorithmIdentifier_DSA_with(WPACKET *pkt, int cont,
                                        DSA *dsa, int mdnid);

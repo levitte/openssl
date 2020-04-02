@@ -149,6 +149,7 @@ static int dsa_setup_md(PROV_DSA_CTX *ctx,
     if (mdname != NULL) {
         EVP_MD *md = EVP_MD_fetch(ctx->libctx, mdname, mdprops);
         int md_nid = dsa_get_md_nid(md);
+        WPACKET pkt;
 
         if (md == NULL || md_nid == NID_undef) {
             EVP_MD_free(md);
@@ -165,11 +166,13 @@ static int dsa_setup_md(PROV_DSA_CTX *ctx,
          * still valid, just as long as it's not used to construct
          * anything that needs an AlgorithmIdentifier.
          */
-        ctx->aid = &ctx->aid_buf[sizeof(ctx->aid_buf)];
-        if (!DER_w_algorithmIdentifier_DSA_with(&ctx->aid, &ctx->aid_len,
-                                                ctx->aid_buf,
-                                                ctx->dsa, md_nid))
-            ctx->aid_len = 0;
+        ctx->aid_len = 0;
+        if (WPACKET_init_der(&pkt, ctx->aid_buf, sizeof(ctx->aid_buf))
+            && DER_w_algorithmIdentifier_DSA_with(&pkt, -1, ctx->dsa, md_nid)
+            && WPACKET_finish(&pkt)) {
+            WPACKET_get_total_written(&pkt, &ctx->aid_len);
+            ctx->aid = WPACKET_get_curr(&pkt);
+        }
 
         ctx->mdctx = NULL;
         ctx->md = md;
