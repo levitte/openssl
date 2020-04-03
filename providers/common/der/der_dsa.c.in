@@ -20,7 +20,7 @@
 
 int DER_w_algorithmIdentifier_DSA(WPACKET *pkt, int cont, DSA *dsa)
 {
-    return DER_w_start_sequence(pkt, cont)
+    return DER_w_begin_sequence(pkt, cont)
         /* No parameters (yet?) */
         && DER_w_precompiled(pkt, -1, der_oid_id_dsa, sizeof(der_oid_id_dsa))
         && DER_w_end_sequence(pkt, cont);
@@ -52,7 +52,7 @@ int DER_w_algorithmIdentifier_DSA_with(WPACKET *pkt, int cont,
         return 0;
     }
 
-    return DER_w_start_sequence(pkt, cont)
+    return DER_w_begin_sequence(pkt, cont)
         /* No parameters (yet?) */
         && DER_w_precompiled(pkt, -1, precompiled, precompiled_sz)
         && DER_w_end_sequence(pkt, cont);
