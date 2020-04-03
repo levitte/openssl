@@ -237,6 +237,7 @@ static int ecdsa_digest_signverify_init(void *vctx, const char *mdname,
         WPACKET_get_total_written(&pkt, &ctx->aid_len);
         ctx->aid = WPACKET_get_curr(&pkt);
     }
+    WPACKET_cleanup(&pkt);
 
     if (!EVP_DigestInit_ex(ctx->mdctx, ctx->md, NULL))
         goto error;
