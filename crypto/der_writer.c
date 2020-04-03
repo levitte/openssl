@@ -46,26 +46,28 @@ int DER_w_boolean(WPACKET *pkt, int cont, int b)
         && int_end_context(pkt, cont);
 }
 
-int int_der_w_integer(WPACKET *pkt, int cont,
-                      int (*put_bytes)(WPACKET *pkt, void *v,
-                                       unsigned int *top_byte),
-                      void *v)
+static int int_der_w_integer(WPACKET *pkt, int cont,
+                             int (*put_bytes)(WPACKET *pkt, const void *v,
+                                              unsigned int *top_byte),
+                             const void *v)
 {
     unsigned int top_byte = 0;
 
     return int_start_context(pkt, cont)
         && WPACKET_start_sub_packet(pkt)
-        && put_bytes(pkt, v, n, &top_byte)
+        && put_bytes(pkt, v, &top_byte)
         && ((top_byte & 0x80) == 0 || WPACKET_put_bytes_u8(pkt, 0))
         && WPACKET_close(pkt)
         && WPACKET_put_bytes_u8(pkt, DER_P_INTEGER)
         && int_end_context(pkt, cont);
 }
 
-int int_put_bytes_ulong(WPACKET *pkt, void *v, unsigned int *top_byte)
+static int int_put_bytes_ulong(WPACKET *pkt, const void *v,
+                               unsigned int *top_byte)
 {
-    unsigned long *value = v;
+    const unsigned long *value = v;
     unsigned long tmp = *value;
+    size_t n = 0;
 
     while (tmp != 0) {
         n++;
@@ -81,21 +83,21 @@ int int_put_bytes_ulong(WPACKET *pkt, void *v, unsigned int *top_byte)
 /* For integers, we only support unsigned values for now */
 int DER_w_ulong(WPACKET *pkt, int cont, unsigned long v)
 {
-    return int_der_w_integer(pkt, int cont, int_put_bytes_ulong, &v);
+    return int_der_w_integer(pkt, cont, int_put_bytes_ulong, &v);
 }
 
-int int_put_bytes_bn(WPACKET *pkt, void *v, unsigned int *top_byte)
+static int int_put_bytes_bn(WPACKET *pkt, const void *v,
+                            unsigned int *top_byte)
 {
-    BIGNUM *value = v;
     unsigned char *p = NULL;
+    size_t n = BN_num_bytes(v);
 
     /* The BIGNUM limbs are in LE order */
-    n = BN_num_bytes(v);
     *top_byte =
         ((bn_get_words(v) [(n - 1) / BN_BYTES]) >> (8 * ((n - 1) % BN_BYTES)))
         & 0xFF;
 
-    if (!WPACKET_allocate_bytes(pkt, BN_num_bytes(v), &p))
+    if (!WPACKET_allocate_bytes(pkt, n, &p))
         return 0;
     if (p != NULL)
         BN_bn2bin(v, p);
@@ -109,7 +111,7 @@ int DER_w_bn(WPACKET *pkt, int cont, const BIGNUM *v)
     if (BN_is_zero(v))
         return DER_w_ulong(pkt, cont, 0);
 
-    return int_der_w_integer(pkt, int cont, int_put_bytes_bn, v);
+    return int_der_w_integer(pkt, cont, int_put_bytes_bn, v);
 }
 
 int DER_w_null(WPACKET *pkt, int cont)
