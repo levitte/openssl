@@ -16,7 +16,7 @@ DER_w_boolean, DER_w_ulong, DER_w_bn, DER_w_null
 
 =head1 DESCRIPTION
 
-All functions described here behave the same way, the prepend
+All functions described here behave the same way, they prepend
 (remember that DER writers are used backwards) the DER encoding of
 their respective value to the already written output buffer held by
 I<pkt>.

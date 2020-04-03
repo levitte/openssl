@@ -25,7 +25,7 @@ static int int_end_context(WPACKET *pkt, int cont)
     if (cont < 0)
         return 1;
     return WPACKET_close(pkt)
-        && WPACKET_put_bytes_u8(pkt, DER_C_CONTEXT|cont);
+        && WPACKET_put_bytes_u8(pkt, DER_C_CONTEXT | cont);
 }
 
 int DER_w_precompiled(WPACKET *pkt, int cont,
@@ -46,62 +46,70 @@ int DER_w_boolean(WPACKET *pkt, int cont, int b)
         && int_end_context(pkt, cont);
 }
 
-/* For integers, we only support unsigned values for now */
-int DER_w_ulong(WPACKET *pkt, int cont, unsigned long v)
+int int_der_w_integer(WPACKET *pkt, int cont,
+                      int (*put_bytes)(WPACKET *pkt, void *v,
+                                       unsigned int *top_byte),
+                      void *v)
 {
-    size_t n = 0;
-    unsigned long tmp = v;
-
-    while (tmp != 0) {
-        n++;
-        tmp >>= 8;
-    }
-    if (n == 0)
-        n = 1;
+    unsigned int top_byte = 0;
 
     return int_start_context(pkt, cont)
         && WPACKET_start_sub_packet(pkt)
-        && WPACKET_put_bytes__(pkt, v, n)
+        && put_bytes(pkt, v, n, &top_byte)
+        && ((top_byte & 0x80) == 0 || WPACKET_put_bytes_u8(pkt, 0))
         && WPACKET_close(pkt)
         && WPACKET_put_bytes_u8(pkt, DER_P_INTEGER)
         && int_end_context(pkt, cont);
 }
 
-int DER_w_bn(WPACKET *pkt, int cont, const BIGNUM *v)
+int int_put_bytes_ulong(WPACKET *pkt, void *v, unsigned int *top_byte)
 {
-    size_t n = 0;
-    unsigned int top_byte;
+    unsigned long *value = v;
+    unsigned long tmp = *value;
+
+    while (tmp != 0) {
+        n++;
+        *top_byte = (tmp & 0xFF);
+        tmp >>= 8;
+    }
+    if (n == 0)
+        n = 1;
+
+    return WPACKET_put_bytes__(pkt, *value, n);
+}
+
+/* For integers, we only support unsigned values for now */
+int DER_w_ulong(WPACKET *pkt, int cont, unsigned long v)
+{
+    return int_der_w_integer(pkt, int cont, int_put_bytes_ulong, &v);
+}
+
+int int_put_bytes_bn(WPACKET *pkt, void *v, unsigned int *top_byte)
+{
+    BIGNUM *value = v;
     unsigned char *p = NULL;
 
+    /* The BIGNUM limbs are in LE order */
+    n = BN_num_bytes(v);
+    *top_byte =
+        ((bn_get_words(v) [(n - 1) / BN_BYTES]) >> (8 * ((n - 1) % BN_BYTES)))
+        & 0xFF;
+
+    if (!WPACKET_allocate_bytes(pkt, BN_num_bytes(v), &p))
+        return 0;
+    if (p != NULL)
+        BN_bn2bin(v, p);
+    return 1;
+}
+
+int DER_w_bn(WPACKET *pkt, int cont, const BIGNUM *v)
+{
     if (v == NULL || BN_is_negative(v))
         return 0;
     if (BN_is_zero(v))
         return DER_w_ulong(pkt, cont, 0);
 
-    /* The BIGNUM limbs are in LE order */
-    n = BN_num_bytes(v);
-    top_byte =
-        ((bn_get_words(v) [(n - 1) / BN_BYTES]) >> (8 * ((n - 1) % BN_BYTES)))
-        & 0xFF;
-    if (top_byte > 0x7F)
-        n++;
-
-    if (!int_start_context(pkt, cont)
-        || !WPACKET_start_sub_packet(pkt)
-        || !WPACKET_allocate_bytes(pkt, n, &p))
-        return 0;
-
-    if (p != NULL) {
-        BN_bn2binpad(v, p, n);
-
-        /* Double check that we got the top byte correctly */
-        if (top_byte > 0x7F && !ossl_assert(top_byte == p[1]))
-            return 0;
-    }
-
-    return WPACKET_close(pkt)
-        && WPACKET_put_bytes_u8(pkt, DER_P_INTEGER)
-        && int_end_context(pkt, cont);
+    return int_der_w_integer(pkt, int cont, int_put_bytes_bn, v);
 }
 
 int DER_w_null(WPACKET *pkt, int cont)
@@ -109,7 +117,7 @@ int DER_w_null(WPACKET *pkt, int cont)
     return int_start_context(pkt, cont)
         && WPACKET_start_sub_packet(pkt)
         && WPACKET_close(pkt)
-        && WPACKET_put_bytes_u8(pkt, DER_P_INTEGER)
+        && WPACKET_put_bytes_u8(pkt, DER_P_NULL)
         && int_end_context(pkt, cont);
 }
 
@@ -123,6 +131,6 @@ int DER_w_begin_sequence(WPACKET *pkt, int cont)
 int DER_w_end_sequence(WPACKET *pkt, int cont)
 {
     return WPACKET_close(pkt)
-        && WPACKET_put_bytes_u8(pkt, DER_F_CONSTRUCTED|DER_P_SEQUENCE)
+        && WPACKET_put_bytes_u8(pkt, DER_F_CONSTRUCTED | DER_P_SEQUENCE)
         && int_end_context(pkt, cont);
 }
