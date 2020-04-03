@@ -20,7 +20,7 @@
 
 int DER_w_algorithmIdentifier_EC(WPACKET *pkt, int cont, EC_KEY *ec)
 {
-    return DER_w_start_sequence(pkt, cont)
+    return DER_w_begin_sequence(pkt, cont)
         /* No parameters (yet?) */
         && DER_w_precompiled(pkt, -1, der_oid_id_ecPublicKey,
                              sizeof(der_oid_id_ecPublicKey))
@@ -60,7 +60,7 @@ int DER_w_algorithmIdentifier_ECDSA_with(WPACKET *pkt, int cont,
         return 0;
     }
 
-    return DER_w_start_sequence(pkt, cont)
+    return DER_w_begin_sequence(pkt, cont)
         /* No parameters (yet?) */
         && DER_w_precompiled(pkt, -1, precompiled, precompiled_sz)
         && DER_w_end_sequence(pkt, cont);

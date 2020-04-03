@@ -69,21 +69,21 @@ The function encode_oid_nums() can be exported explicitly.
 
 ######## REGEXPS
 
-# ASN.1 object identifiers come in two forms: 1) the dotted form (referred
-# to as XMLObjIdentifierValue in X.690), 2) the bracketed form (referred to
-# as ObjectIdentifierValue in X.690)
+# ASN.1 object identifiers come in two forms: 1) the bracketed form
+#(referred to as ObjectIdentifierValue in X.690), 2) the dotted form
+#(referred to as XMLObjIdentifierValue in X.690)
 #
 # examples of 1 (these are all the OID for rsaEncrypted):
-#
-# 1.2.840.113549.1.1
-# pkcs.1.1
-# pkcs1.1
-#
-# examples of 2:
 #
 # { iso (1) 2 840 11349 1 1 }
 # { pkcs 1 1 }
 # { pkcs1 1 }
+#
+# examples of 2:
+#
+# 1.2.840.113549.1.1
+# pkcs.1.1
+# pkcs1.1
 #
 my $identifier_re = qr/[a-z](?:[-_A-Za-z0-9]*[A-Za-z0-9])?/;
 # The only difference between $objcomponent_re and $xmlobjcomponent_re is
@@ -148,12 +148,12 @@ sub parse_oid {
     # where they can also be the empty string if they are not present
     # in the input.
     my @components;
-    if ($input =~ m/^\s*(${xmlobj_re})\s*$/) {
-        my $oid = $1;
-        @components = ( $oid =~ m/${xmlobjcomponent_re}\.?/g );
-    } elsif ($input =~ m/^\s*(${obj_re})\s*$/x) {
+    if ($input =~ m/^\s*(${obj_re})\s*$/x) {
         my $oid = $1;
         @components = ( $oid =~ m/${objcomponent_re}\s*/g );
+    } elsif ($input =~ m/^\s*(${xmlobj_re})\s*$/) {
+        my $oid = $1;
+        @components = ( $oid =~ m/${xmlobjcomponent_re}\.?/g );
     }
 
     croak "Invalid ASN.1 object '$input'" unless @components;
