@@ -13,18 +13,6 @@
 #include "internal/der.h"
 #include "crypto/bn.h"
 
-static int int_write_bytes(WPACKET *pkt,
-                           const unsigned char *bytes, size_t bytes_n)
-{
-    unsigned char *p = NULL;
-
-    if (!WPACKET_allocate_bytes(pkt, bytes_n, &p))
-        return 0;
-    if (p != NULL)
-        memcpy(p, bytes, bytes_n);
-    return 1;
-}
-
 static int int_start_context(WPACKET *pkt, int cont)
 {
     if (cont < 0)
@@ -44,7 +32,7 @@ int DER_w_precompiled(WPACKET *pkt, int cont,
                       const unsigned char *precompiled, size_t precompiled_n)
 {
     return int_start_context(pkt, cont)
-        && int_write_bytes(pkt, precompiled, precompiled_n)
+        && WPACKET_memcpy(pkt, precompiled, precompiled_n)
         && int_end_context(pkt, cont);
 }
 
