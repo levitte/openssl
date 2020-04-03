@@ -134,7 +134,7 @@ value:
 
 =head1 SEE ALSO
 
-L<DER_w_bn(3)>, L<DER_w_begin_sequence(3)>
+L<DER_w_bn(3)>, L<DER_w_begin_sequence(3)>, L<DER_w_precompiled(3)>
 
 =head1 COPYRIGHT
 
