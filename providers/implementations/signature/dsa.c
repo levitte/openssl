@@ -173,6 +173,7 @@ static int dsa_setup_md(PROV_DSA_CTX *ctx,
             WPACKET_get_total_written(&pkt, &ctx->aid_len);
             ctx->aid = WPACKET_get_curr(&pkt);
         }
+        WPACKET_cleanup(&pkt);
 
         ctx->mdctx = NULL;
         ctx->md = md;
