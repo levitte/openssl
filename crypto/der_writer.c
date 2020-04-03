@@ -126,7 +126,7 @@ int DER_w_null(WPACKET *pkt, int cont)
 }
 
 /* Constructed things need a start and an end */
-int DER_w_start_sequence(WPACKET *pkt, int cont)
+int DER_w_begin_sequence(WPACKET *pkt, int cont)
 {
     return int_start_context(pkt, cont)
         && WPACKET_start_sub_packet(pkt);

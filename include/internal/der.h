@@ -80,58 +80,5 @@ int DER_w_null(WPACKET *pkt, int cont);
 /*
  * All constructors for constructed elements have a start and a stop function
  */
-int DER_w_start_sequence(WPACKET *pkt, int cont);
+int DER_w_begin_sequence(WPACKET *pkt, int cont);
 int DER_w_end_sequence(WPACKET *pkt, int cont);
-
-
-
-#if 0                        /* Example code should not be compiled */
-
-/*
- * Example:
- * To build the RSASSA-PSS AlgorithmIndentifier with the restrictions
- * hashAlgorithm = SHA256, maskGenAlgorithm = mgf1SHA256, saltLength = 20,
- * this is the expected code:
- *
- * Reminder:
- * RSASSA-PSS-params ::= SEQUENCE {
- *     hashAlgorithm      [0] HashAlgorithm      DEFAULT sha1,
- *     maskGenAlgorithm   [1] MaskGenAlgorithm   DEFAULT mgf1SHA1,
- *     saltLength         [2] INTEGER            DEFAULT 20,
- *     trailerField       [3] TrailerField       DEFAULT trailerFieldBC
- * }
- */
-
-const unsigned char der_oid_sha256[N]; /* N is to be determined */
-
-/* buf is the buffer we write the DER content into, sz is its size */
-WPACKET pkt;
-
-unsigned char *p = buf + sz;
-
-if (!WPACKET_init_der(&pkt, buf, sz)
-    /* AlgorithmIdentifier SEQUENCE subpacket */
-    || (!DER_w_start_sequence(&pkt, DER_NO_CONTEXT)
-        /* Parameter subpacket */
-        || (!DER_w_start_sequence(&pkt, DER_NO_CONTEXT)
-            /* Context 2 */
-            || !DER_w_ulong(&pkt, 2, 20)
-            /* Context 1 */
-            || !DER_w_precompiled(&pkt, 1,
-                                  der_oid_mgf1, sizeof(der_oid_mgf1))
-            /* Context 0 */
-            || !DER_w_precompiled(&pkt, 0,
-                                  der_oid_sha256, sizeof(der_oid_sha256))
-            || !DER_w_end_sequence(&pkt, DER_NO_CONTEXT))
-        || !DER_w_precompiled(&pkt, DER_NO_CONTEXT,
-                              der_oid_rsassaPss, sizeof(der_oid_rsassaPss))
-        || !DER_w_end_sequence(&pkt, DER_NO_CONTEXT))
-    || !WPACKET_finish(&pkt)
-    || !WPACKET_get_total_written(&pkt, &length)
-    || (p = WPACKET_get_curr(&pkt)) == NULL)
-    /* ERROR */ ;
-
-/* At this point, |p| is the start of the DER blob and |length| is its length */
-
-#endif
-
