@@ -7,7 +7,8 @@
 
   Major changes between OpenSSL 1.0.2u and OpenSSL 1.0.2v [under development]
 
-      o
+      o Implemented coordinate blinding for the generic implementations of both
+        binary and prime elliptic curves
 
   Major changes between OpenSSL 1.0.2t and OpenSSL 1.0.2u [20 Dec 2019]
 

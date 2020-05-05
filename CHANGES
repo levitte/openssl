@@ -9,7 +9,15 @@
 
  Changes between 1.0.2u and 1.0.2v [xx XXX xxxx]
 
-  *)
+  *) Implemented coordinate blinding for the generic implementations of both
+     binary and prime elliptic curves to avoid leaking bits of the scalar and,
+     potentially, bug attacks. A group of security researchers and
+     cryptographers from academia and industry, listed below, reported a
+     successful cache timing attack in OpenSSL 1.0.2u against specific prime and
+     binary curves whose order or field length is close to a word boundary. They
+     also provided the fix. This attack does not fit the OpenSSL threat model
+     and so no CVE is assigned, but a fix is implemented nonetheless.
+     [Diego F. Aranha, Akira Takahashi, Mehdi Tibouchi, Yuval Yarom]
 
  Changes between 1.0.2t and 1.0.2u [20 Dec 2019]
 
