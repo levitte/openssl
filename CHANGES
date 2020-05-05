@@ -7,7 +7,7 @@
  https://github.com/openssl/openssl/commits/ and pick the appropriate
  release branch.
 
- Changes between 1.0.2u and 1.0.2v [xx XXX xxxx]
+ Changes between 1.0.2u and 1.0.2v [5 May 2020]
 
   *) Implemented coordinate blinding for the generic implementations of both
      binary and prime elliptic curves to avoid leaking bits of the scalar and,
