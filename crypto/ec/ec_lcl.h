@@ -260,6 +260,8 @@ struct ec_group_st {
     int (*field_mod_func) (BIGNUM *, const BIGNUM *, const BIGNUM *,
                            BN_CTX *);
     BN_MONT_CTX *mont_data;     /* data for ECDSA inverse */
+    int decoded_from_explicit_params; /* set if decoded from explicit
+                                       * curve parameters encoding */
 } /* EC_GROUP */ ;
 
 struct ec_key_st {

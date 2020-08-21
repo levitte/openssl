@@ -187,6 +187,12 @@ typedef struct ec_parameters_st {
     ASN1_INTEGER *cofactor;
 } ECPARAMETERS;
 
+typedef enum {
+    ECPKPARAMETERS_TYPE_NAMED = 0,
+    ECPKPARAMETERS_TYPE_EXPLICIT,
+    ECPKPARAMETERS_TYPE_IMPLICIT
+} ecpk_parameters_type_t;
+
 struct ecpk_parameters_st {
     int type;
     union {
@@ -659,9 +665,9 @@ ECPKPARAMETERS *ec_asn1_group2pkparameters(const EC_GROUP *group,
             return NULL;
         }
     } else {
-        if (ret->type == 0 && ret->value.named_curve)
+        if (ret->type == ECPKPARAMETERS_TYPE_NAMED && ret->value.named_curve != NULL)
             ASN1_OBJECT_free(ret->value.named_curve);
-        else if (ret->type == 1 && ret->value.parameters)
+        else if (ret->type == ECPKPARAMETERS_TYPE_EXPLICIT && ret->value.parameters != NULL)
             ECPARAMETERS_free(ret->value.parameters);
     }
 
@@ -671,15 +677,15 @@ ECPKPARAMETERS *ec_asn1_group2pkparameters(const EC_GROUP *group,
          */
         tmp = EC_GROUP_get_curve_name(group);
         if (tmp) {
-            ret->type = 0;
+            ret->type = ECPKPARAMETERS_TYPE_NAMED;
             if ((ret->value.named_curve = OBJ_nid2obj(tmp)) == NULL)
                 ok = 0;
         } else
-            /* we don't kmow the nid => ERROR */
+            /* we don't know the nid => ERROR */
             ok = 0;
     } else {
         /* use the ECPARAMETERS structure */
-        ret->type = 1;
+        ret->type = ECPKPARAMETERS_TYPE_EXPLICIT;
         if ((ret->value.parameters =
              ec_asn1_group2parameters(group, NULL)) == NULL)
             ok = 0;
@@ -1023,7 +1029,8 @@ EC_GROUP *ec_asn1_pkparameters2group(const ECPKPARAMETERS *params)
         return NULL;
     }
 
-    if (params->type == 0) {    /* the curve is given by an OID */
+    if (params->type == ECPKPARAMETERS_TYPE_NAMED) {
+        /* the curve is given by an OID */
         tmp = OBJ_obj2nid(params->value.named_curve);
         if ((ret = EC_GROUP_new_by_curve_name(tmp)) == NULL) {
             ECerr(EC_F_EC_ASN1_PKPARAMETERS2GROUP,
@@ -1031,15 +1038,16 @@ EC_GROUP *ec_asn1_pkparameters2group(const ECPKPARAMETERS *params)
             return NULL;
         }
         EC_GROUP_set_asn1_flag(ret, OPENSSL_EC_NAMED_CURVE);
-    } else if (params->type == 1) { /* the parameters are given by a
-                                     * ECPARAMETERS structure */
+    } else if (params->type == ECPKPARAMETERS_TYPE_EXPLICIT) {
+        /* the parameters are given by an ECPARAMETERS structure */
         ret = ec_asn1_parameters2group(params->value.parameters);
         if (!ret) {
             ECerr(EC_F_EC_ASN1_PKPARAMETERS2GROUP, ERR_R_EC_LIB);
             return NULL;
         }
         EC_GROUP_set_asn1_flag(ret, 0x0);
-    } else if (params->type == 2) { /* implicitlyCA */
+    } else if (params->type == ECPKPARAMETERS_TYPE_IMPLICIT) {
+        /* implicit parameters inherited from CA - unsupported */
         return NULL;
     } else {
         ECerr(EC_F_EC_ASN1_PKPARAMETERS2GROUP, EC_R_ASN1_ERROR);
@@ -1068,6 +1076,10 @@ EC_GROUP *d2i_ECPKParameters(EC_GROUP **a, const unsigned char **in, long len)
         ECPKPARAMETERS_free(params);
         return NULL;
     }
+
+    if (params->type == ECPKPARAMETERS_TYPE_EXPLICIT
+        && EC_GROUP_VERSION(group))
+        group->decoded_from_explicit_params = 1;
 
     if (a && *a)
         EC_GROUP_free(*a);
@@ -1122,6 +1134,10 @@ EC_KEY *d2i_ECPrivateKey(EC_KEY **a, const unsigned char **in, long len)
         if (ret->group)
             EC_GROUP_free(ret->group);
         ret->group = ec_asn1_pkparameters2group(priv_key->parameters);
+        if (ret->group != NULL
+            && priv_key->parameters->type == ECPKPARAMETERS_TYPE_EXPLICIT
+            && EC_GROUP_VERSION(ret->group))
+            ret->group->decoded_from_explicit_params = 1;
     }
 
     if (ret->group == NULL) {

@@ -562,3 +562,11 @@ void EC_KEY_clear_flags(EC_KEY *key, int flags)
 {
     key->flags &= ~flags;
 }
+
+int EC_KEY_decoded_from_explicit_params(const EC_KEY *key)
+{
+    if (key == NULL || key->group == NULL)
+        return -1;
+    return EC_GROUP_VERSION(key->group)
+           && key->group->decoded_from_explicit_params;
+}
