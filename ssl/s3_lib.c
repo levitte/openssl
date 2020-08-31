@@ -352,10 +352,8 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      40,
      56,
      },
-#endif
 
 /* Cipher 0C */
-#ifndef OPENSSL_NO_WEAK_SSL_CIPHERS
     {
      1,
      SSL3_TXT_DH_DSS_DES_64_CBC_SHA,
@@ -370,7 +368,6 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      56,
      56,
      },
-#endif
 
 /* Cipher 0D */
     {
@@ -389,7 +386,6 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      },
 
 /* Cipher 0E */
-#ifndef OPENSSL_NO_WEAK_SSL_CIPHERS
     {
      0,
      SSL3_TXT_DH_RSA_DES_40_CBC_SHA,
@@ -404,10 +400,8 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      40,
      56,
      },
-#endif
 
 /* Cipher 0F */
-#ifndef OPENSSL_NO_WEAK_SSL_CIPHERS
     {
      1,
      SSL3_TXT_DH_RSA_DES_64_CBC_SHA,
@@ -422,7 +416,6 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      56,
      56,
      },
-#endif
 
 /* Cipher 10 */
     {
@@ -439,6 +432,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      112,
      168,
      },
+#endif /* OPENSSL_NO_WEAK_SSL_CIPHERS */
 
 /* The Ephemeral DH ciphers */
 /* Cipher 11 */
@@ -941,6 +935,8 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      128,
      128,
      },
+
+#ifndef OPENSSL_NO_WEAK_SSL_CIPHERS
 /* Cipher 30 */
     {
      1,
@@ -971,6 +967,8 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      128,
      128,
      },
+#endif
+
 /* Cipher 32 */
     {
      1,
@@ -1032,6 +1030,8 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      256,
      256,
      },
+
+#ifndef OPENSSL_NO_WEAK_SSL_CIPHERS
 /* Cipher 36 */
     {
      1,
@@ -1063,6 +1063,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      256,
      256,
      },
+#endif
 
 /* Cipher 38 */
     {
@@ -1161,6 +1162,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      256,
      },
 
+#ifndef OPENSSL_NO_WEAK_SSL_CIPHERS
     /* Cipher 3E */
     {
      1,
@@ -1192,6 +1194,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      128,
      128,
      },
+#endif
 
     /* Cipher 40 */
     {
@@ -1228,6 +1231,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      128,
      },
 
+#ifndef OPENSSL_NO_WEAK_SSL_CIPHERS
     /* Cipher 42 */
     {
      1,
@@ -1259,6 +1263,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      128,
      128,
      },
+#endif
 
     /* Cipher 44 */
     {
@@ -1451,6 +1456,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      128,
      },
 
+#ifndef OPENSSL_NO_WEAK_SSL_CIPHERS
     /* Cipher 68 */
     {
      1,
@@ -1482,6 +1488,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      256,
      256,
      },
+#endif
 
     /* Cipher 6A */
     {
@@ -1620,6 +1627,8 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      256,
      256,
      },
+
+#ifndef OPENSSL_NO_WEAK_SSL_CIPHERS
     /* Cipher 85 */
     {
      1,
@@ -1651,6 +1660,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      256,
      256,
      },
+#endif
 
     /* Cipher 87 */
     {
@@ -1786,6 +1796,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      128,
      },
 
+#ifndef OPENSSL_NO_WEAK_SSL_CIPHERS
     /* Cipher 97 */
     {
      1,
@@ -1817,6 +1828,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      128,
      128,
      },
+#endif
 
     /* Cipher 99 */
     {
@@ -1934,6 +1946,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      256,
      },
 
+#ifndef OPENSSL_NO_WEAK_SSL_CIPHERS
     /* Cipher A0 */
     {
      1,
@@ -1965,6 +1978,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      256,
      256,
      },
+#endif
 
     /* Cipher A2 */
     {
@@ -1998,6 +2012,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      256,
      },
 
+#ifndef OPENSSL_NO_WEAK_SSL_CIPHERS
     /* Cipher A4 */
     {
      1,
@@ -2029,6 +2044,7 @@ OPENSSL_GLOBAL SSL_CIPHER ssl3_ciphers[] = {
      256,
      256,
      },
+#endif
 
     /* Cipher A6 */
     {

@@ -7,7 +7,8 @@
 
   Major changes between OpenSSL 1.0.2v and OpenSSL 1.0.2w [under development]
 
-      o
+      o Due to the Raccoon attack static "DH" ciphersuites have been moved to
+        the "weak-ssl-ciphers" list (CVE-2020-1968)
 
   Major changes between OpenSSL 1.0.2u and OpenSSL 1.0.2v [5 May 2020]
 

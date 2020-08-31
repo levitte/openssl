@@ -9,7 +9,13 @@
 
  Changes between 1.0.2v and 1.0.2w [xx XXX xxxx]
 
-  *)
+  *) Due to the Raccoon attack static "DH" ciphersuites have been moved to the
+     "weak-ssl-ciphers" list. Support for the "weak-ssl-ciphers" is not compiled
+     in by default. Support can be added by configuring OpenSSL at compile time
+     with the "enable-weak-ssl-ciphers" option.
+     This is not recommended.
+     (CVE-2020-1968)
+     [Matt Caswell]
 
  Changes between 1.0.2u and 1.0.2v [5 May 2020]
 
