@@ -1588,8 +1588,6 @@ int main(int argc, char *argv[])
 
         SSL_CTX_set_tmp_ecdh(s_ctx, ecdh);
         SSL_CTX_set_tmp_ecdh(s_ctx2, ecdh);
-        SSL_CTX_set_options(s_ctx, SSL_OP_SINGLE_ECDH_USE);
-        SSL_CTX_set_options(s_ctx2, SSL_OP_SINGLE_ECDH_USE);
         EC_KEY_free(ecdh);
     }
 #else

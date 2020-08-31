@@ -3303,13 +3303,6 @@ long ssl3_ctrl(SSL *s, int cmd, long larg, void *parg)
                 return (ret);
             }
             ecdh = (EC_KEY *)parg;
-            if (!(s->options & SSL_OP_SINGLE_ECDH_USE)) {
-                if (!EC_KEY_generate_key(ecdh)) {
-                    EC_KEY_free(ecdh);
-                    SSLerr(SSL_F_SSL3_CTRL, ERR_R_ECDH_LIB);
-                    return (ret);
-                }
-            }
             if (s->cert->ecdh_tmp != NULL)
                 EC_KEY_free(s->cert->ecdh_tmp);
             s->cert->ecdh_tmp = ecdh;
@@ -3804,13 +3797,6 @@ long ssl3_ctx_ctrl(SSL_CTX *ctx, int cmd, long larg, void *parg)
             if (ecdh == NULL) {
                 SSLerr(SSL_F_SSL3_CTX_CTRL, ERR_R_EC_LIB);
                 return 0;
-            }
-            if (!(ctx->options & SSL_OP_SINGLE_ECDH_USE)) {
-                if (!EC_KEY_generate_key(ecdh)) {
-                    EC_KEY_free(ecdh);
-                    SSLerr(SSL_F_SSL3_CTX_CTRL, ERR_R_ECDH_LIB);
-                    return 0;
-                }
             }
 
             if (cert->ecdh_tmp != NULL) {

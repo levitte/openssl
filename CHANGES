@@ -17,6 +17,13 @@
      (CVE-2020-1968)
      [Matt Caswell]
 
+  *) As a response to the Raccoon attack (CVE-2020-1968) the option
+     SSL_OP_SINGLE_ECDH_USE has been made the default and mandaotry (i.e. you
+     cannnot turn it off). This means that ephemeral ECDH secrets are never
+     reused across TLS connections. While Raccoon only affects DH (not ECDH)
+     this change has been made as a precautionary measure.
+     [Matt Caswell]
+
  Changes between 1.0.2u and 1.0.2v [5 May 2020]
 
   *) Implemented coordinate blinding for the generic implementations of both
