@@ -5,7 +5,7 @@
   This file gives a brief overview of the major changes between each OpenSSL
   release. For more details please read the CHANGES file.
 
-  Major changes between OpenSSL 1.0.2v and OpenSSL 1.0.2w [under development]
+  Major changes between OpenSSL 1.0.2v and OpenSSL 1.0.2w [9 Sep 2020]
 
       o Due to the Raccoon attack static "DH" ciphersuites have been moved to
         the "weak-ssl-ciphers" list (CVE-2020-1968)
