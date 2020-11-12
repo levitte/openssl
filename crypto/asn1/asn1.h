@@ -1304,6 +1304,7 @@ void ERR_load_ASN1_strings(void);
 # define ASN1_R_BAD_OBJECT_HEADER                         102
 # define ASN1_R_BAD_PASSWORD_READ                         103
 # define ASN1_R_BAD_TAG                                   104
+# define ASN1_R_BAD_TEMPLATE                              221
 # define ASN1_R_BMPSTRING_IS_WRONG_LENGTH                 214
 # define ASN1_R_BN_LIB                                    105
 # define ASN1_R_BOOLEAN_IS_WRONG_LENGTH                   106
