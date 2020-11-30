@@ -75,6 +75,8 @@ SSLV2CONFTEST = 	sslv2conftest
 DTLSTEST =	dtlstest
 FATALERRTEST =	fatalerrtest
 X509TIMETEST = x509_time_test
+ASN1ENCODETEST=	asn1_encode_test
+ASN1DECODETEST=	asn1_decode_test
 TESTS=		alltests
 
 EXE=	$(BNTEST)$(EXE_EXT) $(ECTEST)$(EXE_EXT)  $(ECDSATEST)$(EXE_EXT) $(ECDHTEST)$(EXE_EXT) $(IDEATEST)$(EXE_EXT) \
@@ -88,7 +90,8 @@ EXE=	$(BNTEST)$(EXE_EXT) $(ECTEST)$(EXE_EXT)  $(ECDSATEST)$(EXE_EXT) $(ECDHTEST)
 	$(ASN1TEST)$(EXE_EXT) $(V3NAMETEST)$(EXE_EXT) $(HEARTBEATTEST)$(EXE_EXT) \
 	$(CONSTTIMETEST)$(EXE_EXT) $(VERIFYEXTRATEST)$(EXE_EXT) \
 	$(CLIENTHELLOTEST)$(EXE_EXT) $(SSLV2CONFTEST)$(EXE_EXT) $(DTLSTEST)$(EXE_EXT) \
-	$(BADDTLSTEST)$(EXE_EXT) $(FATALERRTEST)$(EXE_EXT) $(X509TIMETEST)$(EXE_EXT)
+	$(BADDTLSTEST)$(EXE_EXT) $(FATALERRTEST)$(EXE_EXT) $(X509TIMETEST)$(EXE_EXT) \
+	$(ASN1ENCODETEST)$(EXE_EXT) $(ASN1DECODETEST)$(EXE_EXT)
 
 # $(METHTEST)$(EXE_EXT)
 
@@ -115,7 +118,8 @@ SRC=	$(BNTEST).c $(ECTEST).c  $(ECDSATEST).c $(ECDHTEST).c $(IDEATEST).c \
 	$(EVPTEST).c $(EVPEXTRATEST).c $(IGETEST).c $(JPAKETEST).c $(SRPTEST).c $(ASN1TEST).c \
 	$(V3NAMETEST).c $(HEARTBEATTEST).c $(CONSTTIMETEST).c $(VERIFYEXTRATEST).c \
 	$(CLIENTHELLOTEST).c  $(SSLV2CONFTEST).c $(DTLSTEST).c ssltestlib.c \
-	$(BADDTLSTEST).c $(FATALERRTEST).c $(X509TIMETEST).c
+	$(BADDTLSTEST).c $(FATALERRTEST).c $(X509TIMETEST).c \
+	$(ASN1ENCODETEST).c $(ASN1DECODETEST).c
 
 EXHEADER= 
 HEADER=	testutil.h ssltestlib.h $(EXHEADER)
@@ -160,7 +164,8 @@ alltests: \
 	test_ss test_ca test_engine test_evp test_evp_extra test_ssl test_tsa test_ige \
 	test_jpake test_srp test_cms test_ocsp test_v3name test_heartbeat \
 	test_constant_time test_verify_extra test_clienthello test_sslv2conftest \
-	test_dtls test_bad_dtls test_fatalerr test_x509_time
+	test_dtls test_bad_dtls test_fatalerr test_x509_time \
+	test_asn1_encode test_asn1_decode
 
 test_evp: $(EVPTEST)$(EXE_EXT) evptests.txt
 	../util/shlib_wrap.sh ./$(EVPTEST) evptests.txt
@@ -390,6 +395,14 @@ test_dtls: $(DTLSTEST)$(EXE_EXT)
 	@echo $(START) $@
 	../util/shlib_wrap.sh ./$(DTLSTEST) ../apps/server.pem ../apps/server.pem
 
+test_asn1_encode: $(ASN1ENCODETEST)$(EXE_EXT)
+	@echo $(START) $@
+	../util/shlib_wrap.sh ./$(ASN1ENCODETEST)
+
+test_asn1_decode: $(ASN1DECODETEST)$(EXE_EXT)
+	@echo $(START) $@
+	../util/shlib_wrap.sh ./$(ASN1DECODETEST)
+
 lint:
 	lint -DLINT $(INCLUDES) $(SRC)>fluff
 
@@ -581,6 +594,12 @@ $(SSLV2CONFTEST)$(EXE_EXT): $(SSLV2CONFTEST).o
 
 $(DTLSTEST)$(EXE_EXT): $(DTLSTEST).o ssltestlib.o $(DLIBSSL) $(DLIBCRYPTO)
 	@target=$(DTLSTEST); exobj=ssltestlib.o; $(BUILD_CMD)
+
+$(ASN1ENCODETEST)$(EXE_EXT): $(ASN1ENCODETEST).o $(DLIBCRYPTO)
+	@target=$(ASN1ENCODETEST); $(BUILD_CMD)
+
+$(ASN1DECODETEST)$(EXE_EXT): $(ASN1DECODETEST).o $(DLIBCRYPTO)
+	@target=$(ASN1DECODETEST); $(BUILD_CMD)
 
 #$(AESTEST).o: $(AESTEST).c
 #	$(CC) -c $(CFLAGS) -DINTERMEDIATE_VALUE_KAT -DTRACE_KAT_MCT $(AESTEST).c
