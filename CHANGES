@@ -9,7 +9,18 @@
 
  Changes between 1.0.2w and 1.0.2x [xx XXX xxxx]
 
-  *)
+  *) Fixed NULL pointer deref in the GENERAL_NAME_cmp function
+     This function could crash if both GENERAL_NAMEs contain an EDIPARTYNAME.
+     If an attacker can control both items being compared  then this could lead
+     to a possible denial of service attack. OpenSSL itself uses the
+     GENERAL_NAME_cmp function for two purposes:
+     1) Comparing CRL distribution point names between an available CRL and a
+        CRL distribution point embedded in an X509 certificate
+     2) When verifying that a timestamp response token signer matches the
+        timestamp authority name (exposed via the API functions
+        TS_RESP_verify_response and TS_RESP_verify_token)
+     (CVE-2020-1971)
+     [Matt Caswell]
 
  Changes between 1.0.2v and 1.0.2w [9 Sep 2020]
 

@@ -7,7 +7,7 @@
 
   Major changes between OpenSSL 1.0.2w and OpenSSL 1.0.2x [under development]
 
-      o
+      o Fixed NULL pointer deref in GENERAL_NAME_cmp (CVE-2020-1971)
 
   Major changes between OpenSSL 1.0.2v and OpenSSL 1.0.2w [9 Sep 2020]
 
