@@ -616,6 +616,18 @@ dummytest$(EXE_EXT): dummytest.o $(DLIBCRYPTO)
 
 # DO NOT DELETE THIS LINE -- make depend depends on it.
 
+asn1_decode_test.o: ../include/openssl/asn1.h ../include/openssl/asn1t.h
+asn1_decode_test.o: ../include/openssl/bio.h ../include/openssl/crypto.h
+asn1_decode_test.o: ../include/openssl/e_os2.h ../include/openssl/opensslconf.h
+asn1_decode_test.o: ../include/openssl/opensslv.h ../include/openssl/ossl_typ.h
+asn1_decode_test.o: ../include/openssl/safestack.h ../include/openssl/stack.h
+asn1_decode_test.o: ../include/openssl/symhacks.h asn1_decode_test.c
+asn1_encode_test.o: ../include/openssl/asn1.h ../include/openssl/asn1t.h
+asn1_encode_test.o: ../include/openssl/bio.h ../include/openssl/crypto.h
+asn1_encode_test.o: ../include/openssl/e_os2.h ../include/openssl/opensslconf.h
+asn1_encode_test.o: ../include/openssl/opensslv.h ../include/openssl/ossl_typ.h
+asn1_encode_test.o: ../include/openssl/safestack.h ../include/openssl/stack.h
+asn1_encode_test.o: ../include/openssl/symhacks.h asn1_encode_test.c
 asn1test.o: ../include/openssl/asn1.h ../include/openssl/asn1_mac.h
 asn1test.o: ../include/openssl/bio.h ../include/openssl/buffer.h
 asn1test.o: ../include/openssl/crypto.h ../include/openssl/e_os2.h
