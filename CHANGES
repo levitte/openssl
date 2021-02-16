@@ -7,7 +7,7 @@
  https://github.com/openssl/openssl/commits/ and pick the appropriate
  release branch.
 
- Changes between 1.0.2x and 1.0.2y [xx XXX xxxx]
+ Changes between 1.0.2x and 1.0.2y [16 Feb 2021]
 
   *) Fixed the X509_issuer_and_serial_hash() function. It attempts to
      create a unique hash value based on the issuer and serial number data

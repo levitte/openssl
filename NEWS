@@ -5,7 +5,7 @@
   This file gives a brief overview of the major changes between each OpenSSL
   release. For more details please read the CHANGES file.
 
-  Major changes between OpenSSL 1.0.2x and OpenSSL 1.0.2y [under development]
+  Major changes between OpenSSL 1.0.2x and OpenSSL 1.0.2y [16 Feb 2021]
 
       o Fixed a NULL pointer deref in the X509_issuer_and_serial_hash()
         function (CVE-2021-23841)
