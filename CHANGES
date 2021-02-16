@@ -9,7 +9,45 @@
 
  Changes between 1.0.2x and 1.0.2y [xx XXX xxxx]
 
-  *) Fixed SRP_Calc_client_key so that it uses constant time. The previous
+  *) Fixed the X509_issuer_and_serial_hash() function. It attempts to
+     create a unique hash value based on the issuer and serial number data
+     contained within an X509 certificate. However it was failing to correctly
+     handle any errors that may occur while parsing the issuer field (which might
+     occur if the issuer field is maliciously constructed). This may subsequently
+     result in a NULL pointer deref and a crash leading to a potential denial of
+     service attack.
+     (CVE-2021-23841)
+     [Matt Caswell]
+
+  *) Fixed an SSLv2 rollback attack vulnerability. If a client attempts to
+     negotiate SSLv2 with a server that is configured to support both SSLv2 and
+     more recent SSL and TLS versions then a check is made for a version
+     rollback attack when unpadding an RSA signature. Clients that support SSL
+     or TLS versions greater than SSLv2 are supposed to use a special form of
+     padding. A server that supports greater than SSLv2 is supposed to reject
+     connection attempts from a client where this special form of padding is
+     present, because this indicates that a version rollback has occurred (i.e.
+     both client and server support greater than SSLv2, and yet this is the
+     version that is being requested).
+
+     The implementation of this padding check inverted the logic so that the
+     connection attempt is accepted if the padding is present, and rejected if
+     it is absent. This means that such as server will accept a connection if a
+     version rollback attack has occurred. Further the server will erroneously
+     reject a connection if a normal SSLv2 connection attempt is made.
+     (CVE-2021-23839)
+     [Matt Caswell]
+
+  *) Fixed the EVP_CipherUpdate, EVP_EncryptUpdate and EVP_DecryptUpdate
+     functions. Previously they could overflow the output length argument in some
+     cases where the input length is close to the maximum permissable length for
+     an integer on the platform. In such cases the return value from the function
+     call would be 1 (indicating success), but the output length value would be
+     negative. This could cause applications to behave incorrectly or crash.
+     (CVE-2021-23840)
+     [Matt Caswell]
+
+  *) Fixed SRP_Calc_client_key so that it runs in constant time. The previous
      implementation called BN_mod_exp without setting BN_FLG_CONSTTIME. This
      could be exploited in a side channel attack to recover the password. Since
      the attack is local host only this is outside of the current OpenSSL
