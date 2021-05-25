@@ -68,12 +68,6 @@ int X509_ACERT_verify(X509_ACERT *a, EVP_PKEY *r)
                                NULL, r, NULL, NULL);
 }
 
-int NETSCAPE_SPKI_verify(NETSCAPE_SPKI *a, EVP_PKEY *r)
-{
-    return ASN1_item_verify(ASN1_ITEM_rptr(NETSCAPE_SPKAC),
-                            &a->sig_algor, a->signature, a->spkac, r);
-}
-
 int X509_sign(X509 *x, EVP_PKEY *pkey, const EVP_MD *md)
 {
     if (x == NULL) {
@@ -203,13 +197,6 @@ int X509_ACERT_sign_ctx(X509_ACERT *x, EVP_MD_CTX *ctx)
     return ASN1_item_sign_ctx(ASN1_ITEM_rptr(X509_ACERT_INFO),
                               &x->sig_alg, &x->acinfo->signature, &x->signature,
                               &x->acinfo, ctx);
-}
-
-int NETSCAPE_SPKI_sign(NETSCAPE_SPKI *x, EVP_PKEY *pkey, const EVP_MD *md)
-{
-    return
-        ASN1_item_sign_ex(ASN1_ITEM_rptr(NETSCAPE_SPKAC), &x->sig_algor, NULL,
-                          x->signature, x->spkac, NULL, pkey, md, NULL, NULL);
 }
 
 #ifndef OPENSSL_NO_STDIO
