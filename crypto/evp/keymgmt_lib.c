@@ -94,7 +94,8 @@ int evp_keymgmt_util_export(const EVP_PKEY *pk, int selection,
                               export_cb, export_cbarg);
 }
 
-void *evp_keymgmt_util_export_to_provider(EVP_PKEY *pk, EVP_KEYMGMT *keymgmt)
+void *evp_keymgmt_util_export_to_provider(EVP_PKEY *pk, EVP_KEYMGMT *keymgmt,
+                                          int selection)
 {
     struct evp_keymgmt_util_try_import_data_st import_data;
     OP_CACHE_ELEM *op;
@@ -158,13 +159,13 @@ void *evp_keymgmt_util_export_to_provider(EVP_PKEY *pk, EVP_KEYMGMT *keymgmt)
     /* Setup for the export callback */
     import_data.keydata = NULL;  /* evp_keymgmt_util_try_import will create it */
     import_data.keymgmt = keymgmt;
-    import_data.selection = OSSL_KEYMGMT_SELECT_ALL;
+    import_data.selection = selection;
 
     /*
      * The export function calls the callback (evp_keymgmt_util_try_import),
      * which does the import for us.  If successful, we're done.
      */
-    if (!evp_keymgmt_util_export(pk, OSSL_KEYMGMT_SELECT_ALL,
+    if (!evp_keymgmt_util_export(pk, selection,
                                  &evp_keymgmt_util_try_import, &import_data))
         /* If there was an error, bail out */
         return NULL;
@@ -391,7 +392,8 @@ int evp_keymgmt_util_match(EVP_PKEY *pk1, EVP_PKEY *pk2, int selection)
             ok = 1;
             if (keydata1 != NULL) {
                 tmp_keydata =
-                    evp_keymgmt_util_export_to_provider(pk1, keymgmt2);
+                    evp_keymgmt_util_export_to_provider(pk1, keymgmt2,
+                                                        selection);
                 ok = (tmp_keydata != NULL);
             }
             if (ok) {
@@ -411,7 +413,8 @@ int evp_keymgmt_util_match(EVP_PKEY *pk1, EVP_PKEY *pk2, int selection)
             ok = 1;
             if (keydata2 != NULL) {
                 tmp_keydata =
-                    evp_keymgmt_util_export_to_provider(pk2, keymgmt1);
+                    evp_keymgmt_util_export_to_provider(pk2, keymgmt1,
+                                                        selection);
                 ok = (tmp_keydata != NULL);
             }
             if (ok) {

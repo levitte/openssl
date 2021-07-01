@@ -440,6 +440,9 @@ int ec_export(void *keydata, int selection, OSSL_CALLBACK *param_cb,
     if (!ossl_prov_is_running() || ec == NULL)
         return 0;
 
+    if (selection == 0)
+        selection = EC_POSSIBLE_SELECTIONS;
+
     /*
      * In this implementation, we can export/import only keydata in the
      * following combinations:

@@ -324,10 +324,15 @@ by the implementation of this function.
 
 OSSL_FUNC_keymgmt_import() should import data indicated by I<selection> into
 I<keydata> with values taken from the B<OSSL_PARAM> array I<params>.
+This function may use I<selection> as a declaration of what it should expect
+to find in I<params>, and to discriminate what is acceptable to import.
 
 OSSL_FUNC_keymgmt_export() should extract values indicated by I<selection>
 from I<keydata>, create an B<OSSL_PARAM> array with them and call
 I<param_cb> with that array as well as the given I<cbarg>.
+This function may use I<selection> to discriminate what is acceptable to export.
+I<selection> may also be zero, which should be interpreted as "anything goes",
+leaving it to the caller to determine what was actually exported.
 
 OSSL_FUNC_keymgmt_import_types() should return a constant array of descriptor
 B<OSSL_PARAM> for data indicated by I<selection>, for parameters that
@@ -340,6 +345,8 @@ OSSL_FUNC_keymgmt_export() callback can expect to receive.
 OSSL_FUNC_keymgmt_dup() should duplicate data subsets indicated by
 I<selection> or the whole key data I<keydata_from> and create a new
 provider side key object with the data.
+This function may use I<selection> to discriminate what is acceptable to
+duplicate.
 
 =head2 Common Information Parameters
 

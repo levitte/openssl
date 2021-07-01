@@ -283,6 +283,9 @@ static int mac_export(void *keydata, int selection, OSSL_CALLBACK *param_cb,
     if (tmpl == NULL)
         return 0;
 
+    if (selection == 0)
+        selection = OSSL_KEYMGMT_SELECT_PRIVATE_KEY;
+
     if ((selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0
          && !key_to_params(key, tmpl, NULL))
         goto err;

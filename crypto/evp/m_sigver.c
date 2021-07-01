@@ -46,6 +46,7 @@ static int do_sigver_init(EVP_MD_CTX *ctx, EVP_PKEY_CTX **pctx,
     EVP_PKEY_CTX *locpctx = NULL;
     EVP_SIGNATURE *signature = NULL;
     EVP_KEYMGMT *tmp_keymgmt = NULL;
+    int selection;
     const char *supported_sig = NULL;
     char locmdname[80] = "";     /* 80 chars should be enough */
     void *provkey = NULL;
@@ -85,8 +86,10 @@ static int do_sigver_init(EVP_MD_CTX *ctx, EVP_PKEY_CTX **pctx,
      * Ensure that the key is provided, either natively, or as a cached export.
      */
     tmp_keymgmt = locpctx->keymgmt;
+    selection = ver ? EVP_PKEY_PUBLIC_KEY : EVP_PKEY_KEYPAIR;
     provkey = evp_pkey_export_to_provider(locpctx->pkey, locpctx->libctx,
-                                          &tmp_keymgmt, locpctx->propquery);
+                                          &tmp_keymgmt, selection,
+                                          locpctx->propquery);
     if (provkey == NULL) {
         ERR_raise(ERR_LIB_EVP, EVP_R_INITIALIZATION_ERROR);
         goto err;

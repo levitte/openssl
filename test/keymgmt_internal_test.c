@@ -221,18 +221,19 @@ static int test_pass_rsa(FIXTURE *fixture)
         goto err;
 
     while (dup_pk == NULL) {
+        int sel = OSSL_KEYMGMT_SELECT_KEYPAIR;
+
         ret = 0;
         km = km3;
         /* Check that we can't export an RSA key into a RSA-PSS keymanager */
         if (!TEST_ptr_null(provkey2 = evp_pkey_export_to_provider(pk, NULL,
-                                                                  &km,
+                                                                  &km, sel,
                                                                   NULL)))
             goto err;
 
         if (!TEST_ptr(provkey = evp_pkey_export_to_provider(pk, NULL, &km1,
-                                                            NULL))
-            || !TEST_true(evp_keymgmt_export(km2, provkey,
-                                             OSSL_KEYMGMT_SELECT_KEYPAIR,
+                                                            sel, NULL))
+            || !TEST_true(evp_keymgmt_export(km2, provkey, sel,
                                              &export_cb, keydata)))
             goto err;
 

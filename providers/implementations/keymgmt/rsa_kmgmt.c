@@ -188,6 +188,9 @@ static int rsa_export(void *keydata, int selection,
     if (!ossl_prov_is_running() || rsa == NULL)
         return 0;
 
+    if (selection == 0)
+        selection = RSA_POSSIBLE_SELECTIONS;
+
     if ((selection & RSA_POSSIBLE_SELECTIONS) == 0)
         return 0;
 

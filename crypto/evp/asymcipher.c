@@ -24,6 +24,7 @@ static int evp_pkey_asym_cipher_init(EVP_PKEY_CTX *ctx, int operation,
     void *provkey = NULL;
     EVP_ASYM_CIPHER *cipher = NULL;
     EVP_KEYMGMT *tmp_keymgmt = NULL;
+    int selection;
     const char *supported_ciph = NULL;
 
     if (ctx == NULL) {
@@ -43,9 +44,21 @@ static int evp_pkey_asym_cipher_init(EVP_PKEY_CTX *ctx, int operation,
      * Ensure that the key is provided, either natively, or as a cached export.
      *  If not, go legacy
      */
+    switch (operation) {
+    case EVP_PKEY_OP_ENCRYPT:
+        selection = EVP_PKEY_PUBLIC_KEY;
+        break;
+    case EVP_PKEY_OP_DECRYPT:
+        selection = EVP_PKEY_KEYPAIR;
+        break;
+    default:
+        ERR_raise(ERR_LIB_EVP, EVP_R_INITIALIZATION_ERROR);
+        goto err;
+    }
     tmp_keymgmt = ctx->keymgmt;
     provkey = evp_pkey_export_to_provider(ctx->pkey, ctx->libctx,
-                                          &tmp_keymgmt, ctx->propquery);
+                                          &tmp_keymgmt, selection,
+                                          ctx->propquery);
     if (provkey == NULL)
         goto legacy;
     if (!EVP_KEYMGMT_up_ref(tmp_keymgmt)) {

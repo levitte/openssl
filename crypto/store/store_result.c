@@ -191,6 +191,25 @@ static EVP_PKEY *try_key_ref(struct extracted_param_data_st *data,
     EVP_PKEY *pk = NULL;
     EVP_KEYMGMT *keymgmt = NULL;
     void *keydata = NULL;
+    int selection = 0;
+
+    switch (ctx->expected_type) {
+    case 0:
+        break;
+    case OSSL_STORE_INFO_PARAMS:
+        selection = OSSL_KEYMGMT_SELECT_ALL_PARAMETERS;
+        break;
+    case OSSL_STORE_INFO_PUBKEY:
+        selection =
+            OSSL_KEYMGMT_SELECT_PUBLIC_KEY
+            | OSSL_KEYMGMT_SELECT_ALL_PARAMETERS;
+        break;
+    case OSSL_STORE_INFO_PKEY:
+        selection = OSSL_KEYMGMT_SELECT_ALL;
+        break;
+    default:
+        return NULL;
+    }
 
     /* If we have an object reference, we must have a data type */
     if (data->data_type == NULL)
@@ -215,7 +234,7 @@ static EVP_PKEY *try_key_ref(struct extracted_param_data_st *data,
 
             import_data.keymgmt = keymgmt;
             import_data.keydata = NULL;
-            import_data.selection = OSSL_KEYMGMT_SELECT_ALL;
+            import_data.selection = selection;
 
             if (export_object != NULL) {
                 /*

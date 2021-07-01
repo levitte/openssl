@@ -33,7 +33,7 @@ static int try_provided_check(EVP_PKEY_CTX *ctx, int selection, int checktype)
 
     keymgmt = ctx->keymgmt;
     keydata = evp_pkey_export_to_provider(ctx->pkey, ctx->libctx,
-                                          &keymgmt, ctx->propquery);
+                                          &keymgmt, selection, ctx->propquery);
     if (keydata == NULL) {
         ERR_raise(ERR_LIB_EVP, EVP_R_INITIALIZATION_ERROR);
         return 0;

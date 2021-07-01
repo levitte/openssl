@@ -202,6 +202,9 @@ static int dh_export(void *keydata, int selection, OSSL_CALLBACK *param_cb,
     if (tmpl == NULL)
         return 0;
 
+    if (selection == 0)
+        selection = DH_POSSIBLE_SELECTIONS;
+
     if ((selection & OSSL_KEYMGMT_SELECT_ALL_PARAMETERS) != 0)
         ok = ok && ossl_dh_params_todata(dh, tmpl, NULL);
     if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0)

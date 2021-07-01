@@ -191,7 +191,7 @@ int EVP_PKEY_copy_parameters(EVP_PKEY *to, const EVP_PKEY *from)
         EVP_KEYMGMT *to_keymgmt = to->keymgmt;
         void *from_keydata =
             evp_pkey_export_to_provider((EVP_PKEY *)from, NULL, &to_keymgmt,
-                                        NULL);
+                                        SELECT_PARAMETERS, NULL);
 
         /*
          * If we get a NULL, it could be an internal error, or it could be
@@ -267,7 +267,8 @@ static int evp_pkey_cmp_any(const EVP_PKEY *a, const EVP_PKEY *b,
 
     if (keymgmt2 != NULL && keymgmt2->match != NULL) {
         tmp_keydata =
-            evp_pkey_export_to_provider((EVP_PKEY *)a, NULL, &keymgmt2, NULL);
+            evp_pkey_export_to_provider((EVP_PKEY *)a, NULL, &keymgmt2,
+                                        selection, NULL);
         if (tmp_keydata != NULL) {
             keymgmt1 = keymgmt2;
             keydata1 = tmp_keydata;
@@ -275,7 +276,8 @@ static int evp_pkey_cmp_any(const EVP_PKEY *a, const EVP_PKEY *b,
     }
     if (tmp_keydata == NULL && keymgmt1 != NULL && keymgmt1->match != NULL) {
         tmp_keydata =
-            evp_pkey_export_to_provider((EVP_PKEY *)b, NULL, &keymgmt1, NULL);
+            evp_pkey_export_to_provider((EVP_PKEY *)b, NULL, &keymgmt1,
+                                        selection, NULL);
         if (tmp_keydata != NULL) {
             keymgmt2 = keymgmt1;
             keydata2 = tmp_keydata;
@@ -1796,7 +1798,7 @@ const char *EVP_PKEY_get0_description(const EVP_PKEY *pkey)
 }
 
 void *evp_pkey_export_to_provider(EVP_PKEY *pk, OSSL_LIB_CTX *libctx,
-                                  EVP_KEYMGMT **keymgmt,
+                                  EVP_KEYMGMT **keymgmt, int selection,
                                   const char *propquery)
 {
     EVP_KEYMGMT *allocated_keymgmt = NULL;
@@ -1941,7 +1943,7 @@ void *evp_pkey_export_to_provider(EVP_PKEY *pk, OSSL_LIB_CTX *libctx,
     }
 #endif  /* FIPS_MODULE */
 
-    keydata = evp_keymgmt_util_export_to_provider(pk, tmp_keymgmt);
+    keydata = evp_keymgmt_util_export_to_provider(pk, tmp_keymgmt, selection);
 
  end:
     /*

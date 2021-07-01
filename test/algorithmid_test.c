@@ -57,8 +57,9 @@ static int test_spki_aid(X509_PUBKEY *pubkey, const char *filename)
      * The |keymgmt|, however, should, as its reference count is incremented
      * in this function.
      */
-    if ((keydata = evp_pkey_export_to_provider(pkey, NULL,
-                                               &keymgmt, NULL)) == NULL) {
+    if ((keydata = evp_pkey_export_to_provider(pkey, NULL, &keymgmt,
+                                               EVP_PKEY_PUBLIC_KEY,
+                                               NULL)) == NULL) {
         TEST_info("The public key found in '%s' doesn't have provider support."
                   "  Skipping...",
                   filename);

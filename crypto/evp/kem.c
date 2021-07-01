@@ -24,6 +24,7 @@ static int evp_kem_init(EVP_PKEY_CTX *ctx, int operation,
     EVP_KEM *kem = NULL;
     EVP_KEYMGMT *tmp_keymgmt = NULL;
     void *provkey = NULL;
+    int selection;
     const char *supported_kem = NULL;
 
     if (ctx == NULL || ctx->keytype == NULL) {
@@ -38,8 +39,20 @@ static int evp_kem_init(EVP_PKEY_CTX *ctx, int operation,
      * Ensure that the key is provided, either natively, or as a cached export.
      */
     tmp_keymgmt = ctx->keymgmt;
+    switch (operation) {
+    case EVP_PKEY_OP_ENCAPSULATE:
+        selection = EVP_PKEY_PUBLIC_KEY;
+        break;
+    case EVP_PKEY_OP_DECAPSULATE:
+        selection = EVP_PKEY_KEYPAIR;
+        break;
+    default:
+        ERR_raise(ERR_LIB_EVP, EVP_R_INITIALIZATION_ERROR);
+        goto err;
+    }
     provkey = evp_pkey_export_to_provider(ctx->pkey, ctx->libctx,
-                                          &tmp_keymgmt, ctx->propquery);
+                                          &tmp_keymgmt, selection,
+                                          ctx->propquery);
     if (provkey == NULL
         || !EVP_KEYMGMT_up_ref(tmp_keymgmt)) {
         ERR_raise(ERR_LIB_EVP, EVP_R_INITIALIZATION_ERROR);

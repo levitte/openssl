@@ -230,8 +230,11 @@ int EVP_PKEY_derive_init_ex(EVP_PKEY_CTX *ctx, const OSSL_PARAM params[])
         else
             ctx->pkey = pkey;
     } else {
+        int selection = EVP_PKEY_PUBLIC_KEY; /* ? */
+
         provkey = evp_pkey_export_to_provider(ctx->pkey, ctx->libctx,
-                                            &tmp_keymgmt, ctx->propquery);
+                                              &tmp_keymgmt, selection,
+                                              ctx->propquery);
     }
     if (provkey == NULL)
         goto legacy;
@@ -348,7 +351,7 @@ int EVP_PKEY_derive_set_peer_ex(EVP_PKEY_CTX *ctx, EVP_PKEY *peer,
     }
 
     provkey = evp_pkey_export_to_provider(peer, ctx->libctx, &ctx->keymgmt,
-                                          ctx->propquery);
+                                          EVP_PKEY_PUBLIC_KEY, ctx->propquery);
     /*
      * If making the key provided wasn't possible, legacy may be able to pick
      * it up

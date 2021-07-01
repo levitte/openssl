@@ -168,7 +168,7 @@ int EVP_PKEY_generate(EVP_PKEY_CTX *ctx, EVP_PKEY **ppkey)
         EVP_KEYMGMT *tmp_keymgmt = ctx->keymgmt;
         void *keydata =
             evp_pkey_export_to_provider(ctx->pkey, ctx->libctx,
-                                        &tmp_keymgmt, ctx->propquery);
+                                        &tmp_keymgmt, 0, ctx->propquery);
 
         if (tmp_keymgmt == NULL)
             goto not_supported;
