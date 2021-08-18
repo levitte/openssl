@@ -73,6 +73,10 @@ static int copy_issuer(X509V3_CTX *ctx, GENERAL_NAMES *gens);
 static int do_othername(GENERAL_NAME *gen, char *value, X509V3_CTX *ctx);
 static int do_dirname(GENERAL_NAME *gen, char *value, X509V3_CTX *ctx);
 
+/* Defined in v3_utl.c */
+int x509v3_add_len_value_uchar(const char *name, const unsigned char *value,
+                               size_t vallen, STACK_OF(CONF_VALUE) **extlist);
+
 const X509V3_EXT_METHOD v3_alt[] = {
     {NID_subject_alt_name, 0, ASN1_ITEM_ref(GENERAL_NAMES),
      0, 0, 0, 0,
@@ -134,17 +138,20 @@ STACK_OF(CONF_VALUE) *i2v_GENERAL_NAME(X509V3_EXT_METHOD *method,
         break;
 
     case GEN_EMAIL:
-        if (!X509V3_add_value_uchar("email", gen->d.ia5->data, &ret))
+        if (!x509v3_add_len_value_uchar("email", gen->d.ia5->data,
+                                        gen->d.ia5->length, &ret))
             return NULL;
         break;
 
     case GEN_DNS:
-        if (!X509V3_add_value_uchar("DNS", gen->d.ia5->data, &ret))
+        if (!x509v3_add_len_value_uchar("DNS", gen->d.ia5->data,
+                                        gen->d.ia5->length, &ret))
             return NULL;
         break;
 
     case GEN_URI:
-        if (!X509V3_add_value_uchar("URI", gen->d.ia5->data, &ret))
+        if (!x509v3_add_len_value_uchar("URI", gen->d.ia5->data,
+                                        gen->d.ia5->length, &ret))
             return NULL;
         break;
 
