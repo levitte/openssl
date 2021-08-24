@@ -7,7 +7,8 @@
 
   Major changes between OpenSSL 1.0.2y and OpenSSL 1.0.2za [under development]
 
-      o
+      o Fixed an SM2 Decryption Buffer Overflow (CVE-2021-3711)
+      o Fixed various read buffer overruns processing ASN.1 strings (CVE-2021-3712)
 
   Major changes between OpenSSL 1.0.2x and OpenSSL 1.0.2y [16 Feb 2021]
 
