@@ -537,6 +537,8 @@ int MAIN(int argc, char **argv)
         BIO_printf(bio_err,
                    "-CAfile file         trusted certificates file\n");
         BIO_printf(bio_err,
+                   "-trusted_first       use trusted certificates first when building the trust chain\n");
+        BIO_printf(bio_err,
                    "-no_alt_chains       only ever use the first certificate chain found\n");
         BIO_printf(bio_err,
                    "-VAfile file         validator certificates file\n");

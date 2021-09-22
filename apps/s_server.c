@@ -567,6 +567,8 @@ static void sv_usage(void)
     BIO_printf(bio_err, " -CApath arg   - PEM format directory of CA's\n");
     BIO_printf(bio_err, " -CAfile arg   - PEM format file of CA's\n");
     BIO_printf(bio_err,
+               " -trusted_first - Use trusted CA's first when building the trust chain\n");
+    BIO_printf(bio_err,
                " -no_alt_chains - only ever use the first certificate chain found\n");
     BIO_printf(bio_err,
                " -nocert       - Don't use any certificates (Anon-DH)\n");

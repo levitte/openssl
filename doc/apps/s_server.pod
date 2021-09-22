@@ -34,6 +34,7 @@ B<openssl> B<s_server>
 [B<-state>]
 [B<-CApath directory>]
 [B<-CAfile filename>]
+[B<-trusted_first>]
 [B<-no_alt_chains>]
 [B<-nocert>]
 [B<-client_sigalgs sigalglist>]
@@ -184,6 +185,12 @@ A file containing trusted certificates to use during client authentication
 and to use when attempting to build the server certificate chain. The list
 is also used in the list of acceptable client CAs passed to the client when
 a certificate is requested.
+
+=item B<-trusted_first>
+
+Use certificates in CA file or CA directory before other certificates 
+when building the trust chain to verify client certificates.
+This is mainly useful in environments with Bridge CAs or Cross-Certified CAs.
 
 =item B<-no_alt_chains>
 
