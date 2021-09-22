@@ -9,7 +9,9 @@
 
  Changes between 1.0.2za and 1.0.2zb [xx XXX xxxx]
 
-  *)
+  *) The X509_V_FLAG_TRUSTED_FIRST is set by default on certificate verification
+     if -DOPENSSL_TRUSTED_FIRST_DEFAULT is used with the build configuration.
+     [Tomáš Mráz]
 
  Changes between 1.0.2y and 1.0.2za [24 Aug 2021]
 

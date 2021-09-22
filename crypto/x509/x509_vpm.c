@@ -142,7 +142,11 @@ static void x509_verify_param_zero(X509_VERIFY_PARAM *param)
      * param->inh_flags = X509_VP_FLAG_DEFAULT;
      */
     param->inh_flags = 0;
+#ifdef OPENSSL_TRUSTED_FIRST_DEFAULT
+    param->flags = X509_V_FLAG_TRUSTED_FIRST;
+#else
     param->flags = 0;
+#endif
     param->depth = -1;
     if (param->policies) {
         sk_ASN1_OBJECT_pop_free(param->policies, ASN1_OBJECT_free);
