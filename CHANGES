@@ -7,7 +7,7 @@
  https://github.com/openssl/openssl/commits/ and pick the appropriate
  release branch.
 
- Changes between 1.0.2za and 1.0.2zb [xx XXX xxxx]
+ Changes between 1.0.2za and 1.0.2zb [23 Sep 2021]
 
   *) The X509_V_FLAG_TRUSTED_FIRST is set by default on certificate verification
      if -DOPENSSL_TRUSTED_FIRST_DEFAULT is used with the build configuration.
