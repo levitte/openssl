@@ -1580,6 +1580,8 @@ LEAF(bn_sqr_comba8)
 	sltu	AT,c_2,t_1
 	daddu	c_3,t_2,AT
 	sd	c_2,8(a0)
+	sltu	AT,c_3,t_2
+	daddu	c_1,AT
 
 	dmultu	a_2,a_0		/* mul_add_c2(a[2],b[0],c3,c1,c2); */
 	mflo	t_1
@@ -2089,6 +2091,8 @@ LEAF(bn_sqr_comba4)
 	sltu	AT,c_2,t_1
 	daddu	c_3,t_2,AT
 	sd	c_2,8(a0)
+	sltu	AT,c_3,t_2
+	daddu	c_1,AT
 
 	dmultu	a_2,a_0		/* mul_add_c2(a[2],b[0],c3,c1,c2); */
 	mflo	t_1
