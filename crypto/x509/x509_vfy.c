@@ -120,6 +120,7 @@ static int check_trust(X509_STORE_CTX *ctx);
 static int check_revocation(X509_STORE_CTX *ctx);
 static int check_cert(X509_STORE_CTX *ctx);
 static int check_policy(X509_STORE_CTX *ctx);
+static int check_curve(X509 *cert);
 
 static int get_crl_score(X509_STORE_CTX *ctx, X509 **pissuer,
                          unsigned int *preasons, X509_CRL *crl, X509 *x);
@@ -597,6 +598,8 @@ static int check_chain_extensions(X509_STORE_CTX *ctx)
     int proxy_path_length = 0;
     int purpose;
     int allow_proxy_certs;
+    int num = sk_X509_num(ctx->chain);
+
     cb = ctx->verify_cb;
 
     /*-
@@ -673,6 +676,17 @@ static int check_chain_extensions(X509_STORE_CTX *ctx)
             } else
                 ret = 1;
             break;
+        }
+        if ((ctx->param->flags & X509_V_FLAG_X509_STRICT)
+            && ret && num > 1) {
+            /* Check for presence of explicit elliptic curve parameters */
+            ret = check_curve(x);
+            if (ret < 0) {
+                ctx->error = X509_V_ERR_UNSPECIFIED;
+                ret = 0;
+            } else if (ret == 0) {
+                ctx->error = X509_V_ERR_EC_KEY_EXPLICIT_PARAMS;
+            }
         }
         if (ret == 0) {
             ctx->error_depth = i;
@@ -2575,3 +2589,33 @@ IMPLEMENT_STACK_OF(X509_NAME)
 IMPLEMENT_STACK_OF(X509_ATTRIBUTE)
 
 IMPLEMENT_ASN1_SET_OF(X509_ATTRIBUTE)
+
+/*
+ * Check whether the public key of ``cert`` does not use explicit params
+ * for an elliptic curve.
+ *
+ * Returns 1 on success, 0 if check fails, -1 for other errors.
+ */
+static int check_curve(X509 *cert)
+{
+#ifndef OPENSSL_NO_EC
+    EVP_PKEY *pkey = X509_get_pubkey(cert);
+
+    /* Unsupported or malformed key */
+    if (pkey == NULL)
+        return -1;
+
+    if (EVP_PKEY_id(pkey) == EVP_PKEY_EC) {
+        int ret;
+        EC_KEY *eckey = EVP_PKEY_get0(pkey);
+
+        ret = EC_KEY_decoded_from_explicit_params(eckey);
+        EVP_PKEY_free(pkey);
+
+        return ret < 0 ? ret : !ret;
+    }
+    EVP_PKEY_free(pkey);
+#endif
+
+    return 1;
+}

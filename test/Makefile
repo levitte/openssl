@@ -278,6 +278,11 @@ test_verify: ../apps/openssl$(EXE_EXT)
 	@echo "The following command should have some OK's and some failures"
 	@echo "There are definitly a few expired certificates"
 	../util/shlib_wrap.sh ../apps/openssl verify -CApath ../certs/demo ../certs/demo/*.pem
+	../util/shlib_wrap.sh ../apps/openssl verify -CAfile ./certs/root-cert.pem -untrusted ./certs/ca-cert-ec-named.pem ./certs/ee-cert-ec-explicit.pem
+	../util/shlib_wrap.sh ../apps/openssl verify -CAfile ./certs/root-cert.pem -untrusted ./certs/ca-cert-ec-explicit.pem ./certs/ee-cert-ec-named-explicit.pem
+	../util/shlib_wrap.sh ../apps/openssl verify -x509_strict -CAfile ./certs/root-cert.pem -untrusted ./certs/ca-cert-ec-named.pem ./certs/ee-cert-ec-named-named.pem
+	if ../util/shlib_wrap.sh ../apps/openssl verify -x509_strict -CAfile ./certs/root-cert.pem -untrusted ./certs/ca-cert-ec-named.pem ./certs/ee-cert-ec-explicit.pem ; then false ; fi
+	if ../util/shlib_wrap.sh ../apps/openssl verify -x509_strict -CAfile ./certs/root-cert.pem -untrusted ./certs/ca-cert-ec-explicit.pem ./certs/ee-cert-ec-named-explicit.pem ; then false ; fi
 
 test_dh: $(DHTEST)$(EXE_EXT)
 	@echo "Generate a set of DH parameters"

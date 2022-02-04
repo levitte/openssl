@@ -543,6 +543,7 @@ int ssl_verify_alarm_type(long type)
     case X509_V_ERR_HOSTNAME_MISMATCH:
     case X509_V_ERR_EMAIL_MISMATCH:
     case X509_V_ERR_IP_ADDRESS_MISMATCH:
+    case X509_V_ERR_EC_KEY_EXPLICIT_PARAMS:
         al = SSL_AD_BAD_CERTIFICATE;
         break;
     case X509_V_ERR_CERT_SIGNATURE_FAILURE:

@@ -210,6 +210,8 @@ const char *X509_verify_cert_error_string(long n)
         return ("Issuer certificate lookup error");
     case X509_V_ERR_PROXY_SUBJECT_NAME_VIOLATION:
         return ("proxy subject name violation");
+    case X509_V_ERR_EC_KEY_EXPLICIT_PARAMS:
+        return "Certificate public key has explicit ECC parameters";
 
     default:
         BIO_snprintf(buf, sizeof(buf), "error number %ld", n);

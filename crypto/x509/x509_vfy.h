@@ -393,6 +393,7 @@ void X509_STORE_CTX_set_depth(X509_STORE_CTX *ctx, int depth);
 # define         X509_V_ERR_STORE_LOOKUP                         66
 
 # define         X509_V_ERR_PROXY_SUBJECT_NAME_VIOLATION         67
+# define         X509_V_ERR_EC_KEY_EXPLICIT_PARAMS               68
 
 /* Certificate verify flags */
 
