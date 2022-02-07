@@ -9,7 +9,10 @@
 
  Changes between 1.0.2zb and 1.0.2zc [xx XXX xxxx]
 
-  *)
+  *) If the X509_V_FLAG_X509_STRICT flag is set in the certificate verification
+     parameters any certificates with explicit elliptic curve parameters will be
+     rejected if present in the certificate chain to be verified.
+     [Tomáš Mráz]
 
  Changes between 1.0.2za and 1.0.2zb [23 Sep 2021]
 
