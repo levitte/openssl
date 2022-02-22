@@ -5,6 +5,10 @@
   This file gives a brief overview of the major changes between each OpenSSL
   release. For more details please read the CHANGES file.
 
+  Major changes between OpenSSL 1.0.2zc and OpenSSL 1.0.2zd [under development]
+
+      o
+
   Major changes between OpenSSL 1.0.2zb and OpenSSL 1.0.2zc [22 Feb 2022]
 
       o

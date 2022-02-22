@@ -7,6 +7,10 @@
  https://github.com/openssl/openssl/commits/ and pick the appropriate
  release branch.
 
+ Changes between 1.0.2zc and 1.0.2zd [xx XXX xxxx]
+
+  *)
+
  Changes between 1.0.2zb and 1.0.2zc [22 Feb 2022]
 
   *) If the X509_V_FLAG_X509_STRICT flag is set in the certificate verification
