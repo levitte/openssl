@@ -111,6 +111,8 @@ EC_GROUP *EC_GROUP_new(const EC_METHOD *meth)
     ret->seed = NULL;
     ret->seed_len = 0;
 
+    ret->decoded_from_explicit_params = 0;
+
     if (!meth->group_init(ret)) {
         OPENSSL_free(ret);
         return NULL;
