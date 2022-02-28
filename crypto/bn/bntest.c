@@ -1986,6 +1986,14 @@ int test_sqrt(BIO *bp, BN_CTX *ctx)
         putc('\n', stderr);
         fflush(stderr);
     }
+
+    if (BN_dec2bn(&a, "2140142") == 0)
+        goto err;
+    if (BN_dec2bn(&p, "4588033") == 0)
+        goto err;
+    if (BN_mod_sqrt(r, a, p, ctx)) /* this must fail and not hang */
+        goto err;
+
     ret = 1;
  err:
     if (a != NULL)
