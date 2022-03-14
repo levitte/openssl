@@ -9,7 +9,34 @@
 
  Changes between 1.0.2zc and 1.0.2zd [xx XXX xxxx]
 
-  *)
+  *) Fixed a bug in the BN_mod_sqrt() function that can cause it to loop forever
+     for non-prime moduli.
+
+     Internally this function is used when parsing an elliptic curve public key
+     in compressed form or explicit elliptic curve parameters with a base point
+     encoded in compressed form.
+
+     It is possible to trigger the infinite loop by crafting a certificate that
+     has invalid explicit curve parameters and then performing an operation
+     that requires the public key. For example the attacker can use a
+     self-signed certificate to trigger the loop during verification of the
+     certificate signature. Any process that parses and verifies an externally
+     supplied certificate may thus be subject to a denial of service attack. The
+     infinite loop can also be reached when parsing crafted private keys as they
+     can contain explicit elliptic curve parameters.
+
+     Thus vulnerable situations include:
+
+      - TLS clients consuming server certificates
+      - TLS servers consuming client certificates
+      - Hosting providers taking certificates or private keys from customers
+      - Certificate authorities parsing certification requests from subscribers
+      - Anything else which parses ASN.1 elliptic curve parameters
+
+     Also any other applications that use the BN_mod_sqrt() where the attacker
+     can control the parameter values are vulnerable to this DoS issue.
+     (CVE-2022-0778)
+     [Tomáš Mráz]
 
  Changes between 1.0.2zb and 1.0.2zc [22 Feb 2022]
 
