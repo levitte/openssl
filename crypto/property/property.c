@@ -197,6 +197,12 @@ static void impl_cache_free(QUERY *elem)
     }
 }
 
+static void impl_cache_flush_alg(ossl_uintmax_t idx, ALGORITHM *alg)
+{
+    lh_QUERY_doall(alg->cache, &impl_cache_free);
+    lh_QUERY_flush(alg->cache);
+}
+
 static void alg_cleanup(ossl_uintmax_t idx, ALGORITHM *a)
 {
     if (a != NULL) {
@@ -366,6 +372,49 @@ int ossl_method_store_remove(OSSL_METHOD_STORE *store, int nid,
     return 0;
 }
 
+static void
+alg_cleanup_by_provider(ossl_uintmax_t idx, ALGORITHM *alg, void *arg)
+{
+    int i, count;
+
+
+    /*
+     * We walk the stack backwards, to avoid having to deal with stack shifts
+     * caused by deletion
+     */
+    for (count = 0, i = sk_IMPLEMENTATION_num(alg->impls); i-- > 0;) {
+        IMPLEMENTATION *impl = sk_IMPLEMENTATION_value(alg->impls, i);
+
+        if (impl->provider == arg) {
+            impl_free(impl);
+            (void)sk_IMPLEMENTATION_delete(alg->impls, i);
+            count++;
+        }
+    }
+
+    /*
+     * If we removed any implementation, we also clear the whole associated
+     * cache, 'cause that's the sensible thing to do.
+     * There's no point flushing the cache entries where we didn't remove
+     * any implementation, though.
+     */
+    if (count > 0)
+        impl_cache_flush_alg(0, alg);
+}
+
+int ossl_method_store_remove_all_provided(OSSL_METHOD_STORE *store,
+                                          const OSSL_PROVIDER *prov)
+{
+    if (!ossl_property_write_lock(store))
+        return 0;
+
+    ossl_sa_ALGORITHM_doall_arg(store->algs, &alg_cleanup_by_provider,
+                                (void *)prov);
+
+    ossl_property_unlock(store);
+    return 1;
+}
+
 static void alg_do_one(ALGORITHM *alg, IMPLEMENTATION *impl,
                        void (*fn)(int id, void *method, void *fnarg),
                        void *fnarg)
@@ -482,12 +531,6 @@ fin:
     ossl_property_unlock(store);
     ossl_property_free(p2);
     return ret;
-}
-
-static void impl_cache_flush_alg(ossl_uintmax_t idx, ALGORITHM *alg)
-{
-    lh_QUERY_doall(alg->cache, &impl_cache_free);
-    lh_QUERY_flush(alg->cache);
 }
 
 static void ossl_method_cache_flush(OSSL_METHOD_STORE *store, int nid)
