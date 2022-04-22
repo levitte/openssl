@@ -1156,7 +1156,7 @@ static int provider_flush_store_cache(const OSSL_PROVIDER *prov)
     return 1;
 }
 
-static int provider_empty_store(const OSSL_PROVIDER *prov)
+static int provider_remove_store_methods(const OSSL_PROVIDER *prov)
 {
     struct provider_store_st *store;
     int freeing;
@@ -1500,7 +1500,7 @@ int ossl_provider_self_test(const OSSL_PROVIDER *prov)
         return 1;
     ret = prov->self_test(prov->provctx);
     if (ret == 0)
-        (void)provider_empty_store(prov);
+        (void)provider_remove_store_methods(prov);
     return ret;
 }
 
