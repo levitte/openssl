@@ -410,7 +410,7 @@ void *evp_generic_fetch_from_prov(OSSL_PROVIDER *prov, int operation_id,
     return method;
 }
 
-int evp_method_store_flush(OSSL_LIB_CTX *libctx)
+int evp_method_store_cache_flush(OSSL_LIB_CTX *libctx)
 {
     OSSL_METHOD_STORE *store = get_evp_method_store(libctx);
 

@@ -484,7 +484,7 @@ fin:
     return ret;
 }
 
-static void impl_cache_flush_alg(ossl_uintmax_t idx, ALGORITHM *alg, void *arg)
+static void impl_cache_flush_alg(ossl_uintmax_t idx, ALGORITHM *alg)
 {
     lh_QUERY_doall(alg->cache, &impl_cache_free);
     lh_QUERY_flush(alg->cache);
@@ -496,7 +496,7 @@ static void ossl_method_cache_flush(OSSL_METHOD_STORE *store, int nid)
 
     if (alg != NULL) {
         store->cache_nelem -= lh_QUERY_num_items(alg->cache);
-        impl_cache_flush_alg(0, alg, NULL);
+        impl_cache_flush_alg(0, alg);
     }
 }
 
@@ -504,7 +504,7 @@ int ossl_method_store_cache_flush_all(OSSL_METHOD_STORE *store)
 {
     if (!ossl_property_write_lock(store))
         return 0;
-    ossl_sa_ALGORITHM_doall_arg(store->algs, &impl_cache_flush_alg, NULL);
+    ossl_sa_ALGORITHM_doall(store->algs, &impl_cache_flush_alg);
     store->cache_nelem = 0;
     ossl_property_unlock(store);
     return 1;
