@@ -205,8 +205,10 @@ static void impl_cache_flush_alg(ossl_uintmax_t idx, ALGORITHM *alg)
     lh_QUERY_flush(alg->cache);
 }
 
-static void alg_cleanup(ossl_uintmax_t idx, ALGORITHM *a, void *store)
+static void alg_cleanup(ossl_uintmax_t idx, ALGORITHM *a, void *arg)
 {
+    OSSL_METHOD_STORE *store = arg;
+
     if (a != NULL) {
         sk_IMPLEMENTATION_pop_free(a->impls, &impl_free);
         lh_QUERY_doall(a->cache, &impl_cache_free);
@@ -214,7 +216,7 @@ static void alg_cleanup(ossl_uintmax_t idx, ALGORITHM *a, void *store)
         OPENSSL_free(a);
     }
     if (store != NULL)
-        ossl_sa_ALGORITHM_set(store, idx, NULL);
+        ossl_sa_ALGORITHM_set(store->algs, idx, NULL);
 }
 
 /*
