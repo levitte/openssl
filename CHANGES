@@ -9,7 +9,13 @@
 
  Changes between 1.0.2zd and 1.0.2ze [xx XXX xxxx]
 
-  *)
+  *) Fixed a bug in the c_rehash script which was not properly sanitising shell
+    metacharacters to prevent command injection.  This script is distributed by
+    some operating systems in a manner where it is automatically executed.  On
+    such operating systems, an attacker could execute arbitrary commands with the
+    privileges of the script.
+    (CVE-2022-1292)
+    [Tomáš Mráz]
 
  Changes between 1.0.2zc and 1.0.2zd [15 Mar 2022]
 
