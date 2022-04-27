@@ -194,10 +194,14 @@ static void impl_cache_free(QUERY *elem)
 static void alg_cleanup(ossl_uintmax_t idx, ALGORITHM *a)
 {
     if (a != NULL) {
+        int nid = a->nid;
+
         sk_IMPLEMENTATION_pop_free(a->impls, &impl_free);
         lh_QUERY_doall(a->cache, &impl_cache_free);
         lh_QUERY_free(a->cache);
         OPENSSL_free(a);
+        fprintf(stderr, "DEBUG[%s]:           algorithm 0x%x removed\n",
+                __func__, nid);
     }
 }
 
@@ -222,17 +226,25 @@ OSSL_METHOD_STORE *ossl_method_store_new(OSSL_LIB_CTX *ctx)
             return NULL;
         }
     }
+    fprintf(stderr, "DEBUG[%s]: method store %p constructed\n",
+            __func__, (void *)res);
     return res;
 }
 
 void ossl_method_store_free(OSSL_METHOD_STORE *store)
 {
     if (store != NULL) {
+        fprintf(stderr, "DEBUG[%s]: method store %p: cleanup started\n",
+                __func__, (void *)store);
         ossl_sa_ALGORITHM_doall(store->algs, &alg_cleanup);
         ossl_sa_ALGORITHM_free(store->algs);
+        fprintf(stderr, "DEBUG[%s]: method store %p: cleanup finished\n",
+                __func__, (void *)store);
         CRYPTO_THREAD_lock_free(store->lock);
         OPENSSL_free(store);
     }
+    fprintf(stderr, "DEBUG[%s]: method store %p destructed\n",
+            __func__, (void *)store);
 }
 
 static ALGORITHM *ossl_method_store_retrieve(OSSL_METHOD_STORE *store, int nid)
@@ -298,6 +310,8 @@ int ossl_method_store_add(OSSL_METHOD_STORE *store, const OSSL_PROVIDER *prov,
         alg->nid = nid;
         if (!ossl_method_store_insert(store, alg))
             goto err;
+        fprintf(stderr, "DEBUG[%s]: method store %p: algorithm 0x%x inserted\n",
+                __func__, (void *)store, nid);
     }
 
     /* Push onto stack if there isn't one there already */
