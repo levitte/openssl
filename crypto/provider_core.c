@@ -665,6 +665,10 @@ void ossl_provider_free(OSSL_PROVIDER *prov)
 
         CRYPTO_DOWN_REF(&prov->refcnt, &ref, prov->refcnt_lock);
 
+        fprintf(stderr, "DEBUG[%s]: prov = %p (%s), ref = %d, %sinitialized\n",
+                __func__, (void *)prov, prov->name, ref,
+                prov->flag_initialized ? "" : "not ");
+
         /*
          * When the refcount drops to zero, we clean up the provider.
          * Note that this also does teardown, which may seem late,
@@ -825,6 +829,9 @@ static int provider_init(OSSL_PROVIDER *prov)
         goto end;
     }
 
+    fprintf(stderr, "DEBUG[%s]: prov = %p (%s): initializing\n",
+            __func__, (void *)prov, prov->name);
+
     /*
      * If the init function isn't set, it indicates that this provider is
      * a loadable module.
@@ -911,6 +918,8 @@ static int provider_init(OSSL_PROVIDER *prov)
         case OSSL_FUNC_PROVIDER_TEARDOWN:
             prov->teardown =
                 OSSL_FUNC_provider_teardown(provider_dispatch);
+            fprintf(stderr, "DEBUG[%s]: prov = %p (%s): teardown found\n",
+                    __func__, (void *)prov, prov->name);
             break;
         case OSSL_FUNC_PROVIDER_GETTABLE_PARAMS:
             prov->gettable_params =
