@@ -1,11 +1,14 @@
-# Event Queue and Event Dispatching design
+Event Queue and Event Dispatching design
+========================================
 
-## Background
+Background
+----------
 
 For future I/O, especially to implement QUIC, a need for a generic event
 queue and event dispatcher has been identified.
 
-## General description
+General description
+-------------------
 
 The general abstract model is to view an event queue as the connecting bit
 between two parts of a pipe through which an event is passed.
@@ -111,11 +114,13 @@ The action to perform for each case is:
 
 This is essentially a race between the two cases, may the first one win.
 
-## API
+API
+---
 
 The API is defined by [`include/crypto/event.h`](../../include/crypto/event.h).
 
-## Usage examples
+Usage examples
+--------------
 
 ``` C
 /*
@@ -129,13 +134,13 @@ The API is defined by [`include/crypto/event.h`](../../include/crypto/event.h).
  * a freeing function should then be passed as the destructor argument to
  * |ossl_event_set0()|.
  */
- 
+
 int read_socket(struct reader_ctx_st *ctx, inte socket)
 {
     struct ossl_event_st ev;
     unsigned char buf[2048];
     int ret;
-    
+
     ret = read(socket, buf, sizeof(buf));
     if (ret < -1)
         return ret;
@@ -143,10 +148,11 @@ int read_socket(struct reader_ctx_st *ctx, inte socket)
                     NULL, buf, ret, NULL);
     return ossl_event_queue_send(ctx->event_queue, &ev);
 }
- 
+
 ```
 
-## Building recommendations
+Building recommendations
+------------------------
 
 Because we don't want to export internal symbols in our shared libraries,
 the event queue and dispatcher implementation and all internal
