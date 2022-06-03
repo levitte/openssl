@@ -715,6 +715,8 @@ static int RSA_eay_mod_exp(BIGNUM *r0, const BIGNUM *I, RSA *rsa, BN_CTX *ctx)
     r1 = BN_CTX_get(ctx);
     m1 = BN_CTX_get(ctx);
     vrfy = BN_CTX_get(ctx);
+    if (vrfy == NULL)
+        goto err;
 
     {
         BIGNUM local_p, local_q;
