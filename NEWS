@@ -7,7 +7,9 @@
 
   Major changes between OpenSSL 1.0.2ze and OpenSSL 1.0.2zf [under development]
 
-      o
+      o Fixed additional bugs in the c_rehash script which was not properly
+        sanitising shell metacharacters to prevent command injection
+        (CVE-2022-2068)
 
   Major changes between OpenSSL 1.0.2zd and OpenSSL 1.0.2ze [3 May 2022]
 
