@@ -7,6 +7,10 @@
  https://github.com/openssl/openssl/commits/ and pick the appropriate
  release branch.
 
+ Changes between 1.0.2zf and 1.0.2zg [xx XXX xxxx]
+
+  *)
+
  Changes between 1.0.2ze and 1.0.2zf [21 Jun 2022]
 
   *) In addition to the c_rehash shell command injection identified in
