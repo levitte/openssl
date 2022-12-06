@@ -300,6 +300,7 @@ static long enc_ctrl(BIO *b, int cmd, long num, void *ptr)
     long ret = 1;
     int i;
     EVP_CIPHER_CTX **c_ctx;
+    int pend;
 
     ctx = (BIO_ENC_CTX *)b->ptr;
 
@@ -331,8 +332,14 @@ static long enc_ctrl(BIO *b, int cmd, long num, void *ptr)
         /* do a final write */
  again:
         while (ctx->buf_len != ctx->buf_off) {
+            pend = ctx->buf_len - ctx->buf_off;
             i = enc_write(b, NULL, 0);
-            if (i < 0)
+            /*
+             * i should never be > 0 here because we didn't ask to write any
+             * new data. We stop if we get an error or we failed to make any
+             * progress writing pending data.
+             */
+            if (i < 0 || (ctx->buf_len - ctx->buf_off) == pend)
                 return i;
         }
 
