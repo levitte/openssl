@@ -1,6 +1,6 @@
 /* crypto/cms/cms_err.c */
 /* ====================================================================
- * Copyright (c) 1999-2013 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1999-2022 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -278,6 +278,8 @@ static ERR_STRING_DATA CMS_str_reasons[] = {
     {ERR_REASON(CMS_R_UNKNOWN_ID), "unknown id"},
     {ERR_REASON(CMS_R_UNSUPPORTED_COMPRESSION_ALGORITHM),
      "unsupported compression algorithm"},
+    {ERR_REASON(CMS_R_UNSUPPORTED_CONTENT_ENCRYPTION_ALGORITHM),
+     "unsupported content encryption algorithm"},
     {ERR_REASON(CMS_R_UNSUPPORTED_CONTENT_TYPE), "unsupported content type"},
     {ERR_REASON(CMS_R_UNSUPPORTED_KEK_ALGORITHM),
      "unsupported kek algorithm"},
