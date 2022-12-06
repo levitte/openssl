@@ -215,7 +215,7 @@ static int asn1_bio_write(BIO *b, const char *in, int inl)
         case ASN1_STATE_START:
             if (!asn1_bio_setup_ex(b, ctx, ctx->prefix,
                                    ASN1_STATE_PRE_COPY, ASN1_STATE_HEADER))
-                return 0;
+                return -1;
             break;
 
             /* Copy any pre data first */
