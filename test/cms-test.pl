@@ -516,6 +516,14 @@ else {
     print "Zlib not supported: compression tests skipped\n";
 }
 
+# Check failure during BIO setup with -stream is handled correctly
+system("$cmscmd -encrypt -in smcont.txt -stream -recip $smdir/badrsa.pem");
+# To get the actual return value we have to shift $? to the right by 8
+if (($? >> 8) != 6) {
+    $badcmd++;
+    exit 1 if $halt_err;
+}
+
 print "Running modified tests for OpenSSL 0.9.8 cms backport\n" if($ossl8);
 
 if ($badcmd) {
