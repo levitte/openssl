@@ -22,3 +22,7 @@ int bn_bn2binpad(const BIGNUM *a, unsigned char *to, int tolen);
 
 BIGNUM *bn_lebin2bn(const unsigned char *s, int len, BIGNUM *ret);
 int bn_bn2lebinpad(const BIGNUM *a, unsigned char *to, int tolen);
+
+int bn_do_unblind(const BIGNUM *intermediate, const BN_BLINDING *blinding,
+                  const BIGNUM *possible_arg2, const BIGNUM *to_mod,
+                  BN_CTX *ctx, unsigned char *buf, int num);

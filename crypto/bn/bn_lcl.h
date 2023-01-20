@@ -531,6 +531,23 @@ BN_ULONG bn_sub_part_words(BN_ULONG *r, const BN_ULONG *a, const BN_ULONG *b,
 int bn_mul_mont(BN_ULONG *rp, const BN_ULONG *ap, const BN_ULONG *bp,
                 const BN_ULONG *np, const BN_ULONG *n0, int num);
 
+struct bn_blinding_st {
+    BIGNUM *A;
+    BIGNUM *Ai;
+    BIGNUM *e;
+    BIGNUM *mod;                /* just a reference */
+#ifndef OPENSSL_NO_DEPRECATED
+    unsigned long thread_id;    /* added in OpenSSL 0.9.6j and 0.9.7b; used
+                                 * only by crypto/rsa/rsa_eay.c, rsa_lib.c */
+#endif
+    CRYPTO_THREADID tid;
+    int counter;
+    unsigned long flags;
+    BN_MONT_CTX *m_ctx;
+    int (*bn_mod_exp) (BIGNUM *r, const BIGNUM *a, const BIGNUM *p,
+                       const BIGNUM *m, BN_CTX *ctx, BN_MONT_CTX *m_ctx);
+};
+
 #ifdef  __cplusplus
 }
 #endif

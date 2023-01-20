@@ -1,6 +1,6 @@
 /* crypto/bn/bn_err.c */
 /* ====================================================================
- * Copyright (c) 1999-2015 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1999-2023 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -84,6 +84,7 @@ static ERR_STRING_DATA BN_str_functs[] = {
     {ERR_FUNC(BN_F_BN_DIV), "BN_div"},
     {ERR_FUNC(BN_F_BN_DIV_NO_BRANCH), "BN_div_no_branch"},
     {ERR_FUNC(BN_F_BN_DIV_RECP), "BN_div_recp"},
+    {ERR_FUNC(BN_F_BN_DO_UNBLIND), "bn_do_unblind"},
     {ERR_FUNC(BN_F_BN_EXP), "BN_exp"},
     {ERR_FUNC(BN_F_BN_EXPAND2), "bn_expand2"},
     {ERR_FUNC(BN_F_BN_EXPAND_INTERNAL), "BN_EXPAND_INTERNAL"},
@@ -133,6 +134,7 @@ static ERR_STRING_DATA BN_str_reasons[] = {
     {ERR_REASON(BN_R_NOT_INITIALIZED), "not initialized"},
     {ERR_REASON(BN_R_NO_INVERSE), "no inverse"},
     {ERR_REASON(BN_R_NO_SOLUTION), "no solution"},
+    {ERR_REASON(BN_R_PASSED_INVALID_ARGUMENT), "passed invalid argument"},
     {ERR_REASON(BN_R_P_IS_NOT_PRIME), "p is not prime"},
     {ERR_REASON(BN_R_TOO_MANY_ITERATIONS), "too many iterations"},
     {ERR_REASON(BN_R_TOO_MANY_TEMPORARY_VARIABLES),
