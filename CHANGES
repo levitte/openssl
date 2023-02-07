@@ -7,6 +7,10 @@
  https://github.com/openssl/openssl/commits/ and pick the appropriate
  release branch.
 
+ Changes between 1.0.2zg and 1.0.2zh [xx XXX xxxx]
+
+  *)
+
  Changes between 1.0.2zf and 1.0.2zg [7 Feb 2023]
 
   *) Fixed X.400 address type confusion in X.509 GeneralName.

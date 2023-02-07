@@ -5,6 +5,10 @@
   This file gives a brief overview of the major changes between each OpenSSL
   release. For more details please read the CHANGES file.
 
+  Major changes between OpenSSL 1.0.2zg and OpenSSL 1.0.2zh [under development]
+
+      o
+
   Major changes between OpenSSL 1.0.2zf and OpenSSL 1.0.2zg [7 Feb 2023]
 
       o Fixed X.400 address type confusion in X.509 GeneralName (CVE-2023-0286)
