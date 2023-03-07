@@ -1780,15 +1780,24 @@ static int check_policy(X509_STORE_CTX *ctx)
          */
         X509 *x;
         int i;
-        for (i = 1; i < sk_X509_num(ctx->chain); i++) {
+        int cbcalled = 0;
+
+        for (i = 0; i < sk_X509_num(ctx->chain); i++) {
             x = sk_X509_value(ctx->chain, i);
             if (!(x->ex_flags & EXFLAG_INVALID_POLICY))
                 continue;
+            cbcalled = 1;
             ctx->current_cert = x;
             ctx->error = X509_V_ERR_INVALID_POLICY_EXTENSION;
             if (!ctx->verify_cb(0, ctx))
                 return 0;
         }
+        if (!cbcalled) {
+            /* Should not be able to get here */
+            X509err(X509_F_CHECK_POLICY, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        /* The callback ignored the error so we return success */
         return 1;
     }
     if (ret == -2) {
