@@ -286,6 +286,8 @@ test_verify: ../apps/openssl$(EXE_EXT)
 	../util/shlib_wrap.sh ../apps/openssl verify -x509_strict -CAfile ./certs/root-cert.pem -untrusted ./certs/ca-cert-ec-named.pem ./certs/ee-cert-ec-named-named.pem
 	if ../util/shlib_wrap.sh ../apps/openssl verify -x509_strict -CAfile ./certs/root-cert.pem -untrusted ./certs/ca-cert-ec-named.pem ./certs/ee-cert-ec-explicit.pem ; then false ; fi
 	if ../util/shlib_wrap.sh ../apps/openssl verify -x509_strict -CAfile ./certs/root-cert.pem -untrusted ./certs/ca-cert-ec-explicit.pem ./certs/ee-cert-ec-named-explicit.pem ; then false ; fi
+	../util/shlib_wrap.sh ../apps/openssl verify -CAfile ./certs/root-cert.pem -untrusted ./certs/ca-pol-cert.pem -policy_check -policy 1.3.6.1.4.1.16604.998855.1 -explicit_policy ./certs/ee-cert-policies.pem
+	if ../util/shlib_wrap.sh ../apps/openssl verify -CAfile ./certs/root-cert.pem -untrusted ./certs/ca-pol-cert.pem -policy_check -policy 1.3.6.1.4.1.16604.998855.1 -explicit_policy ./certs/ee-cert-policies-bad.pem; then false ; fi
 
 test_dh: $(DHTEST)$(EXE_EXT)
 	@echo "Generate a set of DH parameters"
