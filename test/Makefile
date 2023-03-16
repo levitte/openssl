@@ -159,7 +159,7 @@ alltests: \
 	test_md2 test_mdc2 test_wp \
 	test_rmd test_rc2 test_rc4 test_rc5 test_bf test_cast test_aes \
 	test_rand test_bn test_ec test_ecdsa test_ecdh \
-	test_enc test_x509 test_rsa test_crl test_sid \
+	test_enc test_x509 test_rsa test_crl test_sid test_policy \
 	test_gen test_req test_pkcs7 test_verify test_dh test_dsa \
 	test_ss test_ca test_engine test_evp test_evp_extra test_ssl test_tsa test_ige \
 	test_jpake test_srp test_cms test_ocsp test_v3name test_heartbeat \
@@ -248,6 +248,9 @@ test_sid: ../apps/openssl$(EXE_EXT) tsid testsid.pem
 test_req: ../apps/openssl$(EXE_EXT) treq testreq.pem testreq2.pem
 	@sh ./treq 2>/dev/null
 	@sh ./treq testreq2.pem 2>/dev/null
+
+test_policy: ../apps/openssl$(EXE_EXT) tpolicy
+	@sh ./tpolicy 2>/dev/null
 
 test_pkcs7: ../apps/openssl$(EXE_EXT) tpkcs7 tpkcs7d testp7.pem pkcs7-1.pem
 	@sh ./tpkcs7 2>/dev/null

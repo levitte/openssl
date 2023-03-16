@@ -1,0 +1,18 @@
+#!/bin/sh
+
+#!/bin/sh
+
+cmd='../util/shlib_wrap.sh ../apps/openssl verify -policy_check'
+
+# Expect success
+$cmd -CAfile tpolicy_data/small_policy_tree.pem \
+     tpolicy_data/small_leaf.pem
+if [ $? != 0 ]; then exit 1; fi
+
+# Expect failure
+$cmd -CAfile tpolicy_data/large_policy_tree.pem \
+     tpolicy_data/large_leaf.pem 2>/dev/null
+if [ $? = 0 ]; then exit 1; fi
+echo
+
+exit 0
