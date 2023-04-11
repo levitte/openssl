@@ -563,19 +563,11 @@ static int RSA_eay_private_decrypt(int flen, const unsigned char *from,
             goto err;
     }
 
-    if (blinding) {
-        /*
-         * bn_do_unblind combines blinding inversion and
-         * 0-padded BN BE serialization
-         */
-        j = bn_do_unblind(ret, blinding, unblind, rsa->n, ctx, buf, num);
-        if (j == 0)
+    if (blinding)
+        if (!rsa_blinding_invert(blinding, ret, unblind, ctx))
             goto err;
-    } else {
-        j = bn_bn2binpad(ret, buf, num);
-        if (j < 0)
-            goto err;
-    }
+
+    j = bn_bn2binpad(ret, buf, num);
 
     switch (padding) {
     case RSA_PKCS1_PADDING:
