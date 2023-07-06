@@ -1,6 +1,6 @@
 /* crypto/dh/dh_err.c */
 /* ====================================================================
- * Copyright (c) 1999-2013 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1999-2023 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -73,6 +73,7 @@ static ERR_STRING_DATA DH_str_functs[] = {
     {ERR_FUNC(DH_F_COMPUTE_KEY), "COMPUTE_KEY"},
     {ERR_FUNC(DH_F_DHPARAMS_PRINT_FP), "DHparams_print_fp"},
     {ERR_FUNC(DH_F_DH_BUILTIN_GENPARAMS), "DH_BUILTIN_GENPARAMS"},
+    {ERR_FUNC(DH_F_DH_CHECK), "DH_check"},
     {ERR_FUNC(DH_F_DH_CMS_DECRYPT), "DH_CMS_DECRYPT"},
     {ERR_FUNC(DH_F_DH_CMS_SET_PEERKEY), "DH_CMS_SET_PEERKEY"},
     {ERR_FUNC(DH_F_DH_CMS_SET_SHARED_INFO), "DH_CMS_SET_SHARED_INFO"},
