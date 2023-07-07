@@ -198,11 +198,27 @@ int main(int argc, char *argv[])
     BIO_puts(out, "\n");
     if ((aout < 4) || (bout != aout) || (memcmp(abuf, bbuf, aout) != 0)) {
         fprintf(stderr, "Error in DH routines\n");
-        ret = 1;
-    } else
-        ret = 0;
+        goto err;
+    }
     if (!run_rfc5114_tests())
-        ret = 1;
+        goto err;
+
+    /* Modulus of size: dh check max modulus bits + 1 */
+    if (!BN_set_word(a->p, 1)
+            || !BN_lshift(a->p, a->p, OPENSSL_DH_CHECK_MAX_MODULUS_BITS)) {
+        fprintf(stderr, "Failed creating excessively large modulus\n");
+        goto err;
+    }
+
+    /*
+     * We expect no checks at all for an excessively large modulus
+     */
+    if (DH_check(a, &i)) {
+        fprintf(stderr, "Expected DH_check() to fail\n");
+        goto err;
+    }
+
+    ret = 0;
  err:
     ERR_print_errors_fp(stderr);
 
