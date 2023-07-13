@@ -7,7 +7,7 @@
 
   Major changes between OpenSSL 1.0.2zh and OpenSSL 1.0.2zi [under development]
 
-      o
+      o Fix DH_check() excessive time with over sized modulus (CVE-2023-3446)
 
   Major changes between OpenSSL 1.0.2zg and OpenSSL 1.0.2zh [30 May 2023]
 
