@@ -218,6 +218,18 @@ int main(int argc, char *argv[])
         goto err;
     }
 
+    /* Set q equal to p + 1 */
+    if ((b->q = BN_dup(b->p)) == NULL
+        || !BN_add(b->q, b->q, BN_value_one()))
+        goto err;
+    if (!DH_check(b, &i))
+        goto err;
+    if ((i & DH_CHECK_INVALID_Q_VALUE) == 0
+        || (i & DH_CHECK_Q_NOT_PRIME) != 0) {
+        fprintf(stderr, "Expected only DH_CHECK_INVALID_Q_VALUE to be set\n");
+        goto err;
+    }
+
     ret = 0;
  err:
     ERR_print_errors_fp(stderr);
