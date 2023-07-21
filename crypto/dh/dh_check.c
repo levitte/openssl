@@ -96,28 +96,31 @@ int DH_check(const DH *dh, int *ret)
     if (t2 == NULL)
         goto err;
 
-    if (dh->q) {
-        if (BN_cmp(dh->g, BN_value_one()) <= 0)
-            *ret |= DH_NOT_SUITABLE_GENERATOR;
-        else if (BN_cmp(dh->g, dh->p) >= 0)
-            *ret |= DH_NOT_SUITABLE_GENERATOR;
-        else {
-            /* Check g^q == 1 mod p */
-            if (!BN_mod_exp(t1, dh->g, dh->q, dh->p, ctx))
-                goto err;
-            if (!BN_is_one(t1))
-                *ret |= DH_NOT_SUITABLE_GENERATOR;
-        }
-        if (!BN_is_prime_ex(dh->q, BN_prime_checks, ctx, NULL))
-            *ret |= DH_CHECK_Q_NOT_PRIME;
-        /* Check p == 1 mod q  i.e. q divides p - 1 */
-        if (!BN_div(t1, t2, dh->p, dh->q, ctx))
-            goto err;
-        if (!BN_is_one(t2))
+    if (dh->q != NULL) {
+        if (BN_ucmp(dh->p, dh->q) <= 0) {
             *ret |= DH_CHECK_INVALID_Q_VALUE;
-        if (dh->j && BN_cmp(dh->j, t1))
-            *ret |= DH_CHECK_INVALID_J_VALUE;
-
+        } else {
+            if (BN_cmp(dh->g, BN_value_one()) <= 0)
+                *ret |= DH_NOT_SUITABLE_GENERATOR;
+            else if (BN_cmp(dh->g, dh->p) >= 0)
+                *ret |= DH_NOT_SUITABLE_GENERATOR;
+            else {
+                /* Check g^q == 1 mod p */
+                if (!BN_mod_exp(t1, dh->g, dh->q, dh->p, ctx))
+                    goto err;
+                if (!BN_is_one(t1))
+                    *ret |= DH_NOT_SUITABLE_GENERATOR;
+            }
+            if (!BN_is_prime_ex(dh->q, BN_prime_checks, ctx, NULL))
+                *ret |= DH_CHECK_Q_NOT_PRIME;
+            /* Check p == 1 mod q  i.e. q divides p - 1 */
+            if (!BN_div(t1, t2, dh->p, dh->q, ctx))
+                goto err;
+            if (!BN_is_one(t2))
+                *ret |= DH_CHECK_INVALID_Q_VALUE;
+            if (dh->j && BN_cmp(dh->j, t1))
+                *ret |= DH_CHECK_INVALID_J_VALUE;
+        }
     } else if (BN_is_word(dh->g, DH_GENERATOR_2)) {
         l = BN_mod_word(dh->p, 24);
         if (l != 11)
