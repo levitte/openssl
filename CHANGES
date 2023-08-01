@@ -7,7 +7,7 @@
  https://github.com/openssl/openssl/commits/ and pick the appropriate
  release branch.
 
- Changes between 1.0.2zh and 1.0.2zi [xx XXX xxxx]
+ Changes between 1.0.2zh and 1.0.2zi [1 Aug 2023]
 
  *) Fix excessive time spent checking DH q parameter value.
 
