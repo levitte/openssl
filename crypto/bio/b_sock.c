@@ -114,7 +114,7 @@ static struct ghbn_cache_st {
 } ghbn_cache[GHBN_NUM];
 # endif
 
-static int get_ip(const char *str, unsigned char *ip);
+static int get_ip(const char *str, unsigned char ip[4]);
 # if 0
 static void ghbn_free(struct hostent *a);
 static struct hostent *ghbn_dup(struct hostent *a);
