@@ -88,7 +88,7 @@ static void make_kn(unsigned char *k1, unsigned char *l, int bl)
             k1[i] |= 1;
     }
     /* If MSB set fixup with R */
-    if (l[0] & 0x80)
+    if ((bl > 0) && l[0] & 0x80)
         k1[bl - 1] ^= bl == 16 ? 0x87 : 0x1b;
 }
 
