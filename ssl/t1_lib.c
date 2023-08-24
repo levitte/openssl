@@ -3926,6 +3926,8 @@ int tls1_process_sigalgs(SSL *s)
     for (i = 0, sigptr = c->shared_sigalgs;
          i < c->shared_sigalgslen; i++, sigptr++) {
         idx = tls12_get_pkey_idx(sigptr->rsign);
+        if (idx < 0)
+            continue;
         if (s->cert->pkeys[idx].privatekey) {
             ERR_set_mark();
             if (EVP_PKEY_get_default_digest_nid(s->cert->pkeys[idx].privatekey,
