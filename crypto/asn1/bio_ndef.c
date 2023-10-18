@@ -114,6 +114,7 @@ BIO *BIO_new_NDEF(BIO *out, ASN1_VALUE *val, const ASN1_ITEM *it)
         return NULL;
     }
     ndef_aux = OPENSSL_malloc(sizeof(NDEF_SUPPORT));
+    memset(ndef_aux, 0, sizeof(NDEF_SUPPORT));
     asn_bio = BIO_new(BIO_f_asn1());
 
     /* ASN1 bio needs to be next to output BIO */
