@@ -376,6 +376,7 @@ void ERR_load_DH_strings(void);
 # define DH_F_DHPARAMS_PRINT_FP                           101
 # define DH_F_DH_BUILTIN_GENPARAMS                        106
 # define DH_F_DH_CHECK                                    126
+# define DH_F_DH_CHECK_PUB_KEY                            120
 # define DH_F_DH_CMS_DECRYPT                              117
 # define DH_F_DH_CMS_SET_PEERKEY                          118
 # define DH_F_DH_CMS_SET_SHARED_INFO                      119
@@ -409,6 +410,7 @@ void ERR_load_DH_strings(void);
 # define DH_R_NO_PRIVATE_VALUE                            100
 # define DH_R_PARAMETER_ENCODING_ERROR                    105
 # define DH_R_PEER_KEY_ERROR                              113
+# define DH_R_Q_TOO_LARGE                                 130
 # define DH_R_SHARED_INFO_ERROR                           114
 
 # ifdef  __cplusplus

@@ -74,6 +74,7 @@ static ERR_STRING_DATA DH_str_functs[] = {
     {ERR_FUNC(DH_F_DHPARAMS_PRINT_FP), "DHparams_print_fp"},
     {ERR_FUNC(DH_F_DH_BUILTIN_GENPARAMS), "DH_BUILTIN_GENPARAMS"},
     {ERR_FUNC(DH_F_DH_CHECK), "DH_check"},
+    {ERR_FUNC(DH_F_DH_CHECK_PUB_KEY), "DH_check_pub_key"},
     {ERR_FUNC(DH_F_DH_CMS_DECRYPT), "DH_CMS_DECRYPT"},
     {ERR_FUNC(DH_F_DH_CMS_SET_PEERKEY), "DH_CMS_SET_PEERKEY"},
     {ERR_FUNC(DH_F_DH_CMS_SET_SHARED_INFO), "DH_CMS_SET_SHARED_INFO"},
@@ -109,6 +110,7 @@ static ERR_STRING_DATA DH_str_reasons[] = {
     {ERR_REASON(DH_R_NO_PRIVATE_VALUE), "no private value"},
     {ERR_REASON(DH_R_PARAMETER_ENCODING_ERROR), "parameter encoding error"},
     {ERR_REASON(DH_R_PEER_KEY_ERROR), "peer key error"},
+    {ERR_REASON(DH_R_Q_TOO_LARGE), "q too large"},
     {ERR_REASON(DH_R_SHARED_INFO_ERROR), "shared info error"},
     {0, NULL}
 };
