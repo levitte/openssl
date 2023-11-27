@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   check_update:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
       with:
@@ -33,7 +33,7 @@ jobs:
       run: git diff --exit-code
 
   check_docs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
     - name: config
@@ -47,7 +47,7 @@ jobs:
   # We are not as strict with libraries, but rather adapt to what's
   # expected to be available in a certain version of each platform.
   check-ansi:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
     - name: config
@@ -56,7 +56,7 @@ jobs:
       run: make -s -j4
 
   basic_gcc:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
     - name: config
@@ -67,7 +67,7 @@ jobs:
       run: make test
 
   basic_clang:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
     - name: config
@@ -78,7 +78,7 @@ jobs:
       run: make test
 
   minimal:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
     - name: config
@@ -89,7 +89,7 @@ jobs:
       run: make test
 
   no-deprecated:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
     - name: config
@@ -100,10 +100,7 @@ jobs:
       run: make test
 
   no-shared:
-    strategy:
-      matrix:
-        os: [ ubuntu-latest, macos-latest ]
-    runs-on: ${{matrix.os}}
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
     - name: config
@@ -114,7 +111,7 @@ jobs:
       run: make test
 
   address_ub_sanitizer:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
     - name: config
@@ -128,7 +125,7 @@ jobs:
 # not support running tests in parallel and this build configuration
 # requires more than 3h to run all tests sequentially.
 #  memory_sanitizer:
-#    runs-on: ubuntu-latest
+#    runs-on: ubuntu-22.04-self-hosted
 #    steps:
 #    - uses: actions/checkout@v4
 #    - name: config
@@ -140,7 +137,7 @@ jobs:
 #      run: make test
 
   threads_sanitizer:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
     - name: config
@@ -151,7 +148,7 @@ jobs:
       run: make TESTS=test_threads test
 
   enable_non-default_options:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
     - name: config
@@ -162,7 +159,7 @@ jobs:
       run: make test
 
   legacy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
     - name: config
@@ -173,7 +170,7 @@ jobs:
       run: make test
 
   buildtest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
     - name: config
@@ -184,7 +181,7 @@ jobs:
       run: make test
 
   out-of-tree_build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
     - name: setup build dir
@@ -205,10 +202,7 @@ jobs:
       run: set -eux; cd ${{ env.myblddir }} && make test TESTS='0[0-9]'
 
   out-of-source-and-install:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest ]
-    runs-on: ${{matrix.os}}
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
     - name: extra preparations
@@ -229,7 +223,7 @@ jobs:
       working-directory: ./build
 
   external-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - uses: actions/checkout@v4
       with:
@@ -239,7 +233,7 @@ jobs:
         sudo apt-get update
         sudo apt-get -yq install bison gettext keyutils ldap-utils libldap2-dev libkeyutils-dev python3 python3-paste python3-pyrad slapd tcsh python3-virtualenv virtualenv python3-kdcproxy
     - name: install cpanm and Test2::V0 for gost_engine testing
-      uses: perl-actions/install-with-cpanm@v1
+      uses: actions/perl-actions-install-with-cpanm@v1
       with:
         install: Test2::V0
     - name: setup hostname workaround
@@ -255,7 +249,7 @@ jobs:
 #      run: make test TESTS="test_external_krb5" VERBOSE=1
 
   external-test-pyca:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-self-hosted
     strategy:
       matrix:
         RUST:
@@ -274,7 +268,7 @@ jobs:
       uses: actions/setup-python@v4.3.0
       with:
         python-version: ${{ matrix.PYTHON }}
-    - uses: actions-rs/toolchain@v1
+    - uses: actions/actions-rs-toolchain@v1
       with:
         profile: minimal
         toolchain: ${{ matrix.RUST }}

@@ -49,7 +49,7 @@ jobs:
           }, {
             arch: m68k-linux-gnu,
             libs: libc6-dev-m68k-cross,
-            target: -static -m68040 linux-generic32,
+            target: -static -m68040 -Wno-stringop-overflow linux-generic32,
             tests: -test_includes -test_store -test_x509_store
           }, {
             arch: mips-linux-gnu,
@@ -95,7 +95,7 @@ jobs:
           }, {
             arch: m68k-linux-gnu,
             libs: libc6-dev-m68k-cross,
-            target: -mcfv4e linux-generic32,
+            target: -mcfv4e -Wno-stringop-overflow linux-generic32,
             tests: none
           }, {
             arch: mips-linux-gnu,
@@ -112,12 +112,12 @@ jobs:
           # This build doesn't execute either with or without shared libraries.
           {
             arch: sparc64-linux-gnu,
-            libs: libc6-dev-sparc64-cross,
+            libs: libc6-dev-sparc64-cross m4,
             target: linux64-sparcv9,
             tests: none
           }
         ]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04-self-hosted
     steps:
     - name: install packages
       run: |

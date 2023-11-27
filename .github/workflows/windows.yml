@@ -11,24 +11,20 @@ jobs:
     # Run a job for each of the specified target architectures:
     strategy:
       matrix:
-        os:
-        - windows-2019
-        - windows-2022
         platform:
         - arch: win64
           config: VC-WIN64A
         - arch: win32
           config: VC-WIN32 --strict-warnings
-    runs-on: ${{matrix.os}}
+    runs-on: windows-server-2022-self-hosted
     steps:
     - uses: actions/checkout@v4
-    - uses: ilammy/msvc-dev-cmd@v1
+    - uses: actions/ilammy-msvc-dev-cmd@v1
       with:
         arch: ${{ matrix.platform.arch }}
-    - uses: ilammy/setup-nasm@v1
+    - uses: actions/ilammy-setup-nasm@v1
       with:
         platform: ${{ matrix.platform.arch }}
-    - uses: shogo82148/actions-setup-perl@v1
     - name: prepare the build directory
       run: mkdir _build
     - name: config
@@ -50,16 +46,10 @@ jobs:
         nmake install DESTDIR=_dest
       working-directory: _build
   plain:
-    strategy:
-      matrix:
-        os:
-        - windows-2019
-        - windows-2022
-    runs-on: ${{matrix.os}}
+    runs-on: windows-server-2022-self-hosted
     steps:
     - uses: actions/checkout@v4
-    - uses: ilammy/msvc-dev-cmd@v1
-    - uses: shogo82148/actions-setup-perl@v1
+    - uses: actions/ilammy-msvc-dev-cmd@v1
     - name: prepare the build directory
       run: mkdir _build
     - name: config
@@ -74,16 +64,10 @@ jobs:
       working-directory: _build
       run: nmake test VERBOSE_FAILURE=yes
   minimal:
-    strategy:
-      matrix:
-        os:
-        - windows-2019
-        - windows-2022
-    runs-on: ${{matrix.os}}
+    runs-on: windows-server-2022-self-hosted
     steps:
     - uses: actions/checkout@v4
-    - uses: ilammy/msvc-dev-cmd@v1
-    - uses: shogo82148/actions-setup-perl@v1
+    - uses: actions/ilammy-msvc-dev-cmd@v1
     - name: prepare the build directory
       run: mkdir _build
     - name: config
