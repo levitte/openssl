@@ -1,0 +1,41 @@
+---
+name: Run-checker CI for 1.0.2
+# Jobs run per pull request submission
+on: [pull_request, push]
+permissions:
+  contents: read
+
+jobs:
+  run-checker:
+    strategy:
+      fail-fast: false
+      matrix:
+        opt: [
+          no-cms,
+          no-dtls,
+#          no-ec,
+          no-ec2m,
+#          no-sock,
+          no-srp,
+          no-srtp,
+          enable-ssl-trace,
+          no-tests,
+#          no-threads,
+          no-tls,
+          no-tls1_2,
+#          no-ts,
+#          no-ui,
+        ]
+    runs-on: ubuntu-22.04-self-hosted
+    steps:
+    - uses: actions/checkout@v4
+    - name: config
+      run: CC=gcc ./config --strict-warnings ${{ matrix.opt }}
+    - name: make update
+      run: make update
+    - name: make depend
+      run: make depend
+    - name: make
+      run: make
+    - name: make test
+      run: make test

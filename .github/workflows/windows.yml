@@ -1,0 +1,70 @@
+---
+name: Windows GitHub CI for 1.0.2
+
+on: [pull_request, push]
+
+permissions:
+  contents: read
+
+jobs:
+  shared:
+    # Run a job for each of the specified target architectures:
+    strategy:
+      matrix:
+        platform:
+        - arch: win64
+          config: VC-WIN64A
+          command: ms\do_win64a
+        - arch: win32
+          config: VC-WIN32
+          command: ms\do_nasm
+    runs-on: windows-server-2022-self-hosted
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/ilammy-msvc-dev-cmd@v1
+      with:
+        arch: ${{ matrix.platform.arch }}
+    - uses: actions/ilammy-setup-nasm@v1
+      with:
+        platform: ${{ matrix.platform.arch }}
+    - name: config
+      run: |
+        perl Configure ${{ matrix.platform.config }}
+        ${{ matrix.platform.command }}
+    - name: build
+      run: nmake -f ms\ntdll.mak
+    - name: test
+      run: nmake -f ms\ntdll.mak test
+    - name: install
+      run: |
+        mkdir _dest
+        nmake -f ms\ntdll.mak install DESTDIR=_dest
+
+  plain:
+    runs-on: windows-server-2022-self-hosted
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/ilammy-msvc-dev-cmd@v1
+    - uses: actions/ilammy-setup-nasm@v1
+    - name: config
+      run: |
+        perl Configure no-shared VC-WIN64A
+        ms\do_win64a
+    - name: build
+      run: nmake -f ms\ntdll.mak
+    - name: test
+      run: nmake -f ms\ntdll.mak test
+
+  minimal:
+    runs-on: windows-server-2022-self-hosted
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/ilammy-msvc-dev-cmd@v1
+    - name: config
+      run: |
+        perl Configure no-asm -DOPENSSL_SMALL_FOOTPRINT VC-WIN64A
+        ms\do_win64a
+    - name: build
+      run: nmake -f ms\ntdll.mak # verbose, so no /S here
+    - name: test
+      run: nmake -f ms\ntdll.mak test
