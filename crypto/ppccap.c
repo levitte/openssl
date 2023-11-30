@@ -16,6 +16,12 @@
 
 #include "ppc_arch.h"
 
+int bn_mul_mont(BN_ULONG *rp, const BN_ULONG *ap, const BN_ULONG *bp,
+                const BN_ULONG *np, const BN_ULONG *n0, int num);
+void sha256_block_data_order(void *ctx, const void *inp, size_t len);
+void sha512_block_data_order(void *ctx, const void *inp, size_t len);
+void OPENSSL_cpuid_setup(void);
+
 unsigned int OPENSSL_ppccap_P = 0;
 
 static sigset_t all_masked;

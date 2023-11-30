@@ -9,6 +9,13 @@
 
 #include "sparc_arch.h"
 
+int bn_mul_mont(BN_ULONG *rp, const BN_ULONG *ap, const BN_ULONG *bp,
+                const BN_ULONG *np, const BN_ULONG *n0, int num);
+unsigned long OPENSSL_rdtsc(void);
+size_t OPENSSL_instrument_bus(unsigned int *out, size_t cnt);
+size_t OPENSSL_instrument_bus2(unsigned int *out, size_t cnt, size_t max);
+void OPENSSL_cpuid_setup(void);
+
 #if defined(__GNUC__) && defined(__linux)
 __attribute__ ((visibility("hidden")))
 #endif
