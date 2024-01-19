@@ -1,6 +1,6 @@
 /* crypto/pkcs12/pk12err.c */
 /* ====================================================================
- * Copyright (c) 1999-2006 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1999-2024 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -98,6 +98,7 @@ static ERR_STRING_DATA PKCS12_str_functs[] = {
     {ERR_FUNC(PKCS12_F_PKCS12_SET_MAC), "PKCS12_set_mac"},
     {ERR_FUNC(PKCS12_F_PKCS12_UNPACK_AUTHSAFES), "PKCS12_unpack_authsafes"},
     {ERR_FUNC(PKCS12_F_PKCS12_UNPACK_P7DATA), "PKCS12_unpack_p7data"},
+    {ERR_FUNC(PKCS12_F_PKCS12_UNPACK_P7ENCDATA), "PKCS12_unpack_p7encdata"},
     {ERR_FUNC(PKCS12_F_PKCS12_VERIFY_MAC), "PKCS12_verify_mac"},
     {ERR_FUNC(PKCS12_F_PKCS8_ADD_KEYUSAGE), "PKCS8_add_keyusage"},
     {ERR_FUNC(PKCS12_F_PKCS8_ENCRYPT), "PKCS8_encrypt"},

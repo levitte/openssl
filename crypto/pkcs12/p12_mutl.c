@@ -80,6 +80,11 @@ int PKCS12_gen_mac(PKCS12 *p12, const char *pass, int passlen,
         return 0;
     }
 
+    if (p12->authsafes->d.data == NULL) {
+        PKCS12err(PKCS12_F_PKCS12_GEN_MAC, PKCS12_R_DECODE_ERROR);
+        return 0;
+    }
+
     salt = p12->mac->salt->data;
     saltlen = p12->mac->salt->length;
     if (!p12->mac->iter)

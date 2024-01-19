@@ -171,6 +171,12 @@ STACK_OF(PKCS12_SAFEBAG) *PKCS12_unpack_p7data(PKCS7 *p7)
                   PKCS12_R_CONTENT_TYPE_NOT_DATA);
         return NULL;
     }
+
+    if (p7->d.data == NULL) {
+        PKCS12err(PKCS12_F_PKCS12_UNPACK_P7DATA, PKCS12_R_DECODE_ERROR);
+        return NULL;
+    }
+
     return ASN1_item_unpack(p7->d.data, ASN1_ITEM_rptr(PKCS12_SAFEBAGS));
 }
 
@@ -226,6 +232,12 @@ STACK_OF(PKCS12_SAFEBAG) *PKCS12_unpack_p7encdata(PKCS7 *p7, const char *pass,
 {
     if (!PKCS7_type_is_encrypted(p7))
         return NULL;
+
+    if (p7->d.encrypted == NULL) {
+        PKCS12err(PKCS12_F_PKCS12_UNPACK_P7ENCDATA, PKCS12_R_DECODE_ERROR);
+        return NULL;
+    }
+
     return PKCS12_item_decrypt_d2i(p7->d.encrypted->enc_data->algorithm,
                                    ASN1_ITEM_rptr(PKCS12_SAFEBAGS),
                                    pass, passlen,
@@ -253,6 +265,13 @@ STACK_OF(PKCS7) *PKCS12_unpack_authsafes(PKCS12 *p12)
                   PKCS12_R_CONTENT_TYPE_NOT_DATA);
         return NULL;
     }
+
+    if (p12->authsafes->d.data == NULL) {
+        PKCS12err(PKCS12_F_PKCS12_UNPACK_AUTHSAFES,
+                  PKCS12_R_DECODE_ERROR);
+        return NULL;
+    }
+
     return ASN1_item_unpack(p12->authsafes->d.data,
                             ASN1_ITEM_rptr(PKCS12_AUTHSAFES));
 }
