@@ -165,7 +165,7 @@ alltests: \
 	test_jpake test_srp test_cms test_ocsp test_v3name test_heartbeat \
 	test_constant_time test_verify_extra test_clienthello test_sslv2conftest \
 	test_dtls test_bad_dtls test_fatalerr test_x509_time \
-	test_asn1_encode test_asn1_decode
+	test_asn1_encode test_asn1_decode test_pkcs12
 
 test_evp: $(EVPTEST)$(EXE_EXT) evptests.txt
 	../util/shlib_wrap.sh ./$(EVPTEST) evptests.txt
@@ -412,6 +412,36 @@ test_asn1_encode: $(ASN1ENCODETEST)$(EXE_EXT)
 test_asn1_decode: $(ASN1DECODETEST)$(EXE_EXT)
 	@echo $(START) $@
 	../util/shlib_wrap.sh ./$(ASN1DECODETEST)
+
+test_pkcs12: ../apps/openssl$(EXE_EXT)
+	@if ../util/shlib_wrap.sh ../apps/openssl pkcs12 -in bad1.p12 -password "pass:"; then \
+		false; \
+	else \
+		if [ $$? -ne 1 ]; then \
+			false; \
+		fi; \
+	fi
+	@if ../util/shlib_wrap.sh ../apps/openssl pkcs12 -in bad1.p12 -password "pass:" -nomacver; then \
+		false; \
+	else \
+		if [ $$? -ne 1 ]; then \
+			false; \
+		fi; \
+	fi
+	@if ../util/shlib_wrap.sh ../apps/openssl pkcs12 -in bad2.p12 -password "pass:"; then \
+		false; \
+	else \
+		if [ $$? -ne 1 ]; then \
+			false; \
+		fi; \
+	fi
+	@if ../util/shlib_wrap.sh ../apps/openssl pkcs12 -in bad3.p12 -password "pass:"; then \
+		false; \
+	else \
+		if [ $$? -ne 1 ]; then \
+			false; \
+		fi; \
+	fi
 
 lint:
 	lint -DLINT $(INCLUDES) $(SRC)>fluff
