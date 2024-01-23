@@ -58,7 +58,6 @@
  */
 
 #include <openssl/opensslconf.h>
-#if !defined(OPENSSL_NO_DES) && !defined(OPENSSL_NO_SHA1)
 
 # include <stdio.h>
 # include <stdlib.h>
@@ -133,7 +132,12 @@ int MAIN(int argc, char **argv)
 
     apps_startup();
 
+# ifndef OPENSSL_NO_DES
     enc = EVP_des_ede3_cbc();
+# else
+    enc = EVP_aes_128_cbc();
+# endif
+
     if (bio_err == NULL)
         bio_err = BIO_new_fp(stderr, BIO_NOCLOSE);
 
@@ -177,10 +181,12 @@ int MAIN(int argc, char **argv)
                 cert_pbe = NID_pbe_WithSHA1And3_Key_TripleDES_CBC;
             else if (!strcmp(*args, "-export"))
                 export_cert = 1;
+# ifndef OPENSSL_NO_DES
             else if (!strcmp(*args, "-des"))
                 enc = EVP_des_cbc();
             else if (!strcmp(*args, "-des3"))
                 enc = EVP_des_ede3_cbc();
+# endif
 # ifndef OPENSSL_NO_IDEA
             else if (!strcmp(*args, "-idea"))
                 enc = EVP_idea_cbc();
@@ -1106,7 +1112,3 @@ static int set_pbe(BIO *err, int *ppbe, const char *str)
     }
     return 1;
 }
-
-#else
-static void *dummy = &dummy;
-#endif

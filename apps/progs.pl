@@ -45,8 +45,6 @@ foreach (@ARGV)
 		{ print "#ifndef OPENSSL_NO_EC\n${str}#endif\n";}
 	elsif ( ($_ =~ /^dh$/) || ($_ =~ /^gendh$/) || ($_ =~ /^dhparam$/))
 		{ print "#ifndef OPENSSL_NO_DH\n${str}#endif\n"; }
-	elsif ( ($_ =~ /^pkcs12$/))
-		{ print "#if !defined(OPENSSL_NO_DES) && !defined(OPENSSL_NO_SHA1)\n${str}#endif\n"; }
 	elsif ( ($_ =~ /^cms$/))
 		{ print "#ifndef OPENSSL_NO_CMS\n${str}#endif\n"; }
 	elsif ( ($_ =~ /^ocsp$/))

@@ -130,9 +130,7 @@ FUNCTION functions[] = {
     {FUNC_TYPE_GENERAL, "ciphers", ciphers_main},
 #endif
     {FUNC_TYPE_GENERAL, "nseq", nseq_main},
-#if !defined(OPENSSL_NO_DES) && !defined(OPENSSL_NO_SHA1)
     {FUNC_TYPE_GENERAL, "pkcs12", pkcs12_main},
-#endif
     {FUNC_TYPE_GENERAL, "pkcs8", pkcs8_main},
     {FUNC_TYPE_GENERAL, "pkey", pkey_main},
     {FUNC_TYPE_GENERAL, "pkeyparam", pkeyparam_main},
