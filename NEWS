@@ -7,7 +7,9 @@
 
   Major changes between OpenSSL 1.1.1w and OpenSSL 1.1.1x [under development]
 
-      o
+      o Fixed PKCS12 Decoding crashes (CVE-2024-0727)
+      o Fix excessive time spent in DH check / generation with large Q parameter
+        value (CVE-2023-5678)
 
   Major changes between OpenSSL 1.1.1v and OpenSSL 1.1.1w [11 Sep 2023]
 
