@@ -5,7 +5,7 @@
   This file gives a brief overview of the major changes between each OpenSSL
   release. For more details please read the CHANGES file.
 
-  Major changes between OpenSSL 1.0.2zi and OpenSSL 1.0.2zj [under development]
+  Major changes between OpenSSL 1.0.2zi and OpenSSL 1.0.2zj [30 Jan 2024]
 
       o Fixed PKCS12 Decoding crashes (CVE-2024-0727)
       o Fix excessive time spent in DH check / generation with large Q parameter
