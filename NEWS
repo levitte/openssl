@@ -7,7 +7,8 @@
 
   Major changes between OpenSSL 1.1.1x and OpenSSL 1.1.1y [under development]
 
-      o
+      o Fixed unbounded memory growth with session handling in TLSv1.3
+        (CVE-2024-2511)
 
   Major changes between OpenSSL 1.1.1w and OpenSSL 1.1.1x [30 Jan 2024]
 
