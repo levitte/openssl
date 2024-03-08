@@ -1562,8 +1562,12 @@ int ssl3_read_bytes(SSL *s, int type, unsigned char *buf, int len, int peek)
      * Unexpected handshake message (Client Hello, or protocol violation)
      */
     if ((s->s3->handshake_fragment_len >= 4) && !s->in_handshake) {
-        if (((s->state & SSL_ST_MASK) == SSL_ST_OK) &&
-            !(s->s3->flags & SSL3_FLAGS_NO_RENEGOTIATE_CIPHERS)) {
+        if ((s->state & SSL_ST_MASK) == SSL_ST_OK) {
+            if ((s->s3->flags & SSL3_FLAGS_NO_RENEGOTIATE_CIPHERS) != 0) {
+                al = SSL_AD_NO_RENEGOTIATION;
+                SSLerr(SSL_F_SSL3_READ_BYTES, SSL_R_NO_RENEGOTIATION);
+                goto f_err;
+            }
 #if 0                           /* worked only because C operator preferences
                                  * are not as expected (and because this is
                                  * not really needed for clients except for
