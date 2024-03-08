@@ -6,6 +6,10 @@ on: [pull_request, push]
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   shared:
     # Run a job for each of the specified target architectures:

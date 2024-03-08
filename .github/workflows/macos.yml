@@ -1,0 +1,29 @@
+---
+name: MacOS GitHub CI for 1.1.1
+
+on: [pull_request, push]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  basic:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [w-mac-mini-m1-2, w-mac-mini-intel-2]
+    runs-on: ${{ matrix.runner }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: config
+      run: ./config -Wall -Werror --strict-warnings
+    - name: make
+      run: make -s -j4
+    - name: get cpu info
+      run: sysctl machdep.cpu
+    - name: make test
+      run: make test HARNESS_JOBS=${HARNESS_JOBS:-4}
