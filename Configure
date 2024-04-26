@@ -503,7 +503,7 @@ my @disable_cascades = (
     "pic"               => [ "shared" ],
     "shared"            => [ "dynamic-engine" ],
     "dso"               => [ "dynamic-engine" ],
-    "engine"            => [ "afalgeng", "devcryptoeng" ],
+    "engine"            => [ "dynamic-engine", "afalgeng", "devcryptoeng" ],
 
     # no-autoalginit is only useful when building non-shared
     "autoalginit"       => [ "shared", "apps" ],
