@@ -2834,7 +2834,8 @@ static int ssl_scan_serverhello_tlsext(SSL *s, unsigned char **p,
                 ctx->next_proto_select_cb(s, &selected, &selected_len, data,
                                           size,
                                           s->ctx->next_proto_select_cb_arg) !=
-                SSL_TLSEXT_ERR_OK) {
+                                          SSL_TLSEXT_ERR_OK
+                    || selected_len == 0) {
                 *al = TLS1_AD_INTERNAL_ERROR;
                 return 0;
             }
