@@ -7,6 +7,8 @@
 
   Major changes between OpenSSL 1.1.1x and OpenSSL 1.1.1y [under development]
 
+      o Fixed potential use after free after SSL_free_buffers() is called
+        (CVE-2024-4741)
       o Fixed unbounded memory growth with session handling in TLSv1.3
         (CVE-2024-2511)
 
