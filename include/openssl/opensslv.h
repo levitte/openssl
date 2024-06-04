@@ -39,7 +39,7 @@ extern "C" {
  * (Prior to 0.9.5a beta1, a different scheme was used: MMNNFFRBB for
  *  major minor fix final patch/beta)
  */
-# define OPENSSL_VERSION_NUMBER  0x1010119fL
+# define OPENSSL_VERSION_NUMBER  0x101011a0L
 # define OPENSSL_VERSION_TEXT    "OpenSSL 1.1.1y-dev  xx XXX xxxx"
 
 /*-

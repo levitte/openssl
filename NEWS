@@ -5,6 +5,10 @@
   This file gives a brief overview of the major changes between each OpenSSL
   release. For more details please read the CHANGES file.
 
+  Major changes between OpenSSL 1.1.1y and OpenSSL 1.1.1za [under development]
+
+      o
+
   Major changes between OpenSSL 1.1.1x and OpenSSL 1.1.1y [4 Jun 2024]
 
       o Fixed potential use after free after SSL_free_buffers() is called
