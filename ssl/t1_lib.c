@@ -2857,6 +2857,10 @@ static int ssl_scan_serverhello_tlsext(SSL *s, unsigned char **p,
 
         else if (type == TLSEXT_TYPE_application_layer_protocol_negotiation) {
             unsigned len;
+            int valid = 0;
+            unsigned int conflen, confprotlen = 0;
+            unsigned char *conf;
+
 
             /* We must have requested it. */
             if (!s->cert->alpn_sent) {
@@ -2885,6 +2889,35 @@ static int ssl_scan_serverhello_tlsext(SSL *s, unsigned char **p,
                 *al = TLS1_AD_DECODE_ERROR;
                 return 0;
             }
+
+            /* It must be a protocol that we sent */
+            conf = s->alpn_client_proto_list;
+            conflen = s->alpn_client_proto_list_len;
+
+            for (; conflen > 0; conf += confprotlen, conflen -= confprotlen) {
+                confprotlen = conf[0];
+                conf++;
+                conflen--;
+                if (confprotlen > conflen)
+                    break;
+                if (confprotlen != len)
+                    continue;
+                if (memcmp(data + 3, conf, len) == 0) {
+                    /* Valid protocol found */
+                    valid = 1;
+                    break;
+                }
+            }
+
+            if (!valid) {
+                /*
+                 * The protocol sent from the server does not match one we
+                 * advertised
+                 */
+                *al = SSL_AD_DECODE_ERROR;
+                return 0;
+            }
+
             if (s->s3->alpn_selected)
                 OPENSSL_free(s->s3->alpn_selected);
             s->s3->alpn_selected = OPENSSL_malloc(len);
