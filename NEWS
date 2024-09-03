@@ -7,7 +7,8 @@
 
   Major changes between OpenSSL 1.0.2zj and OpenSSL 1.0.2zk [under development]
 
-      o
+      o Fixed possible buffer overread in SSL_select_next_proto()
+        (CVE-2024-5535)
 
   Major changes between OpenSSL 1.0.2zi and OpenSSL 1.0.2zj [30 Jan 2024]
 
