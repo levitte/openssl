@@ -14,6 +14,7 @@
 # include <stddef.h>
 # include <openssl/opensslconf.h>
 # include <openssl/bn_limbs.h>
+# include <openssl/types.h>
 # include "crypto/types.h"
 
 # ifdef  __cplusplus
@@ -127,6 +128,18 @@ void OSSL_FN_clear_free(OSSL_FN *f);
  * @param[in]   f       The OSSL_FN instance to be cleared.
  */
 void OSSL_FN_clear(OSSL_FN *f);
+
+OSSL_FN_CTX *OSSL_FN_CTX_new(OSSL_LIB_CTX *libctx, size_t arena_size);
+OSSL_FN_CTX *OSSL_FN_CTX_secure_new(OSSL_LIB_CTX *libctx, size_t arena_size);
+void OSSL_FN_CTX_free(OSSL_FN_CTX *ctx);
+
+OSSL_FN *OSSL_FN_CTX_get_limbs(OSSL_FN_CTX *ctx, size_t limbs);
+OSSL_FN *OSSL_FN_CTX_get_bytes(OSSL_FN_CTX *ctx, size_t bytes);
+OSSL_FN *OSSL_FN_CTX_get_bits(OSSL_FN_CTX *ctx, size_t bits);
+
+int OSSL_FN_CTX_start(OSSL_FN_CTX *ctx);
+int OSSL_FN_CTX_end(OSSL_FN_CTX *ctx);
+
 
 # ifdef  __cplusplus
 }
