@@ -1,0 +1,10 @@
+BN_CTX_free
+BN_CTX_new
+BN_bn2lebinpad
+BN_free
+BN_lebin2bn
+BN_mod_exp
+BN_new
+BN_num_bits
+BN_set_flags
+BN_set_word

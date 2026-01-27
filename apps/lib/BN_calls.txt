@@ -1,0 +1,16 @@
+BN_CTX_free
+BN_CTX_new
+BN_add_word
+BN_bn2bin
+BN_check_prime
+BN_cmp
+BN_free
+BN_is_odd
+BN_is_zero
+BN_mod_exp
+BN_new
+BN_num_bits
+BN_print
+BN_rand
+BN_rshift1
+BN_to_ASN1_INTEGER

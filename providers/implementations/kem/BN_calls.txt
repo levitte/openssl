@@ -1,0 +1,17 @@
+BN_CTX_end
+BN_CTX_free
+BN_CTX_get
+BN_CTX_new_ex
+BN_CTX_secure_new_ex
+BN_CTX_start
+BN_add_word
+BN_bin2bn
+BN_bn2binpad
+BN_cmp
+BN_copy
+BN_div
+BN_free
+BN_is_zero
+BN_new
+BN_priv_rand_range_ex
+BN_sub_word

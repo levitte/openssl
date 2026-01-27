@@ -1,0 +1,16 @@
+BN_add_word
+BN_bin2bn
+BN_bn2bin
+BN_clear_free
+BN_div_word
+BN_free
+BN_is_negative
+BN_is_zero
+BN_mul_word
+BN_new
+BN_num_bits
+BN_print
+BN_secure_new
+BN_set_flags
+BN_set_negative
+BN_set_word

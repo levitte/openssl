@@ -1,0 +1,7 @@
+BN_add_word
+BN_bn2dec
+BN_free
+BN_lshift
+BN_new
+BN_set_word
+BN_sub_word

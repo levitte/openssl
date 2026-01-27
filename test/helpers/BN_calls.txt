@@ -1,0 +1,6 @@
+BN_bin2bn
+BN_free
+BN_get_rfc3526_prime_2048
+BN_get_rfc3526_prime_4096
+BN_new
+BN_set_word

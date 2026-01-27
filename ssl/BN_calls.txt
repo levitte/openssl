@@ -1,0 +1,14 @@
+BN_bin2bn
+BN_bn2bin
+BN_clear_free
+BN_copy
+BN_dup
+BN_free
+BN_get_rfc2409_prime_1024
+BN_get_rfc3526_prime_2048
+BN_get_rfc3526_prime_3072
+BN_get_rfc3526_prime_4096
+BN_get_rfc3526_prime_8192
+BN_is_zero
+BN_num_bits
+BN_ucmp

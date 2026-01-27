@@ -1,0 +1,6 @@
+BN_bin2bn
+BN_bn2bin
+BN_free
+BN_is_zero
+BN_num_bits
+BN_ucmp

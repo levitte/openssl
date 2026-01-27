@@ -1,0 +1,15 @@
+BN_CTX_free
+BN_CTX_new
+BN_add
+BN_bin2bn
+BN_cmp
+BN_div
+BN_free
+BN_is_negative
+BN_is_zero
+BN_mod_exp
+BN_mod_exp_simple
+BN_mul
+BN_new
+BN_print_fp
+BN_set_negative

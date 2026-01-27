@@ -1,0 +1,8 @@
+BN_CTX_free
+BN_CTX_get
+BN_CTX_new_ex
+BN_GENCB_get_arg
+BN_GENCB_set
+BN_bn2nativepad
+BN_free
+BN_num_bits

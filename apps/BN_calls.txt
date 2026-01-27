@@ -1,0 +1,2 @@
+BN_bin2bn
+BN_free

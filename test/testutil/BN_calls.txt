@@ -1,0 +1,15 @@
+BN_abs_is_word
+BN_bn2bin
+BN_bn2binpad
+BN_cmp
+BN_dup
+BN_free
+BN_is_negative
+BN_is_odd
+BN_is_one
+BN_is_word
+BN_is_zero
+BN_new
+BN_num_bits
+BN_set_negative
+BN_set_word

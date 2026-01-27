@@ -1,0 +1,3 @@
+BN_CTX_free
+BN_CTX_new_ex
+BN_is_one

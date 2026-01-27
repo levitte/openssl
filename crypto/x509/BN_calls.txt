@@ -1,0 +1,10 @@
+BN_add_word
+BN_bn2dec
+BN_bn2hex
+BN_dec2bn
+BN_free
+BN_hex2bn
+BN_is_zero
+BN_new
+BN_num_bits
+BN_to_ASN1_INTEGER

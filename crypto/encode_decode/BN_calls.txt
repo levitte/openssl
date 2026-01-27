@@ -1,0 +1,4 @@
+BN_bn2hex
+BN_is_negative
+BN_is_zero
+BN_num_bits
