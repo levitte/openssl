@@ -74,3 +74,6 @@ jobs:
                 owner, repo, issue_number: pr_number, name: LABEL,
               });
             }
+
+# Test change, to be dropped.  This exists only to give the test PR
+# a commit carrying an Assisted-by: trailer.
