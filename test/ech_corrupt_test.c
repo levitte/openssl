@@ -12,7 +12,7 @@
 #include "testutil.h"
 #include <openssl/ech.h>
 #include <internal/ech_helpers.h>
-#include <internal/packet.h>
+#include <internal/bytestring.h>
 
 #define OSSL_ECH_MAX_LINELEN 1000 /* for a sanity check */
 #define DEF_CERTS_DIR "test/certs"
@@ -1011,10 +1011,11 @@ static int ech_get_sh_offsets(const unsigned char *sh,
     size_t sh_len, size_t *exts,
     size_t *echoffset, uint16_t *echtype)
 {
-    unsigned int elen = 0, etype = 0, pi_tmp = 0;
-    const unsigned char *pp_tmp = NULL, *shstart = NULL, *estart = NULL;
-    PACKET pkt;
+    uint16_t elen = 0, etype = 0, pi16 = 0;
+    uint8_t pi8 = 0;
+    CBS pkt;
     size_t extlens = 0;
+    size_t estart_off = 0;
     int done = 0;
 #ifdef OSSL_ECH_SUPERVERBOSE
     size_t echlen = 0; /* length of ECH, including type & ECH-internal length */
@@ -1026,49 +1027,47 @@ static int ech_get_sh_offsets(const unsigned char *sh,
         || echtype == NULL)
         return 0;
     *exts = *echoffset = *echtype = 0;
-    if (!PACKET_buf_init(&pkt, sh, sh_len))
-        return 0;
-    shstart = PACKET_data(&pkt);
-    if (!PACKET_get_net_2(&pkt, &pi_tmp))
+    CBS_init(&pkt, sh, sh_len);
+    if (!CBS_get_u16(&pkt, &pi16))
         return 0;
     /* if we're not TLSv1.2+ then we can bail, but it's not an error */
-    if (pi_tmp != TLS1_2_VERSION)
+    if (pi16 != TLS1_2_VERSION)
         return 1;
-    if (!PACKET_get_bytes(&pkt, &pp_tmp, SSL3_RANDOM_SIZE)
+    if (!CBS_skip(&pkt, SSL3_RANDOM_SIZE)
 #ifdef OSSL_ECH_SUPERVERBOSE
-        || (sessid_offset = PACKET_data(&pkt) - shstart) == 0
+        || (sessid_offset = CBS_offset(&pkt)) == 0
 #endif
-        || !PACKET_get_1(&pkt, &pi_tmp) /* sessid len */
+        || !CBS_get_u8(&pkt, &pi8) /* sessid len */
 #ifdef OSSL_ECH_SUPERVERBOSE
-        || (sessid_len = (size_t)pi_tmp) == 0
+        || (sessid_len = (size_t)pi8) == 0
 #endif
-        || !PACKET_get_bytes(&pkt, &pp_tmp, pi_tmp) /* sessid */
-        || !PACKET_get_net_2(&pkt, &pi_tmp) /* ciphersuite */
-        || !PACKET_get_1(&pkt, &pi_tmp) /* compression */
-        || (*exts = PACKET_data(&pkt) - shstart) == 0
-        || !PACKET_get_net_2(&pkt, &pi_tmp)) /* len(extensions) */
+        || !CBS_skip(&pkt, pi8) /* sessid */
+        || !CBS_get_u16(&pkt, &pi16) /* ciphersuite */
+        || !CBS_get_u8(&pkt, &pi8) /* compression */
+        || (*exts = CBS_offset(&pkt)) == 0
+        || !CBS_get_u16(&pkt, &pi16)) /* len(extensions) */
         return 0;
-    extlens = (size_t)pi_tmp;
+    extlens = (size_t)pi16;
     if (extlens == 0) /* not an error, in theory */
         return 1;
-    estart = PACKET_data(&pkt);
-    while (PACKET_remaining(&pkt) > 0
-        && (size_t)(PACKET_data(&pkt) - estart) < extlens
+    estart_off = CBS_offset(&pkt);
+    while (CBS_len(&pkt) > 0
+        && CBS_offset(&pkt) - estart_off < extlens
         && done < 1) {
-        if (!PACKET_get_net_2(&pkt, &etype)
-            || !PACKET_get_net_2(&pkt, &elen))
+        if (!CBS_get_u16(&pkt, &etype)
+            || !CBS_get_u16(&pkt, &elen))
             return 0;
         if (etype == TLSEXT_TYPE_ech) {
             if (elen == 0)
                 return 0;
-            *echoffset = PACKET_data(&pkt) - shstart - 4;
+            *echoffset = CBS_offset(&pkt) - 4;
             *echtype = etype;
 #ifdef OSSL_ECH_SUPERVERBOSE
             echlen = elen + 4; /* type and length included */
 #endif
             done++;
         }
-        if (!PACKET_get_bytes(&pkt, &pp_tmp, elen))
+        if (!CBS_skip(&pkt, elen))
             return 0;
     }
 #ifdef OSSL_ECH_SUPERVERBOSE

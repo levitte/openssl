@@ -39,7 +39,7 @@
 #include <openssl/err.h>
 #include <openssl/rand.h>
 #include <openssl/kdf.h>
-#include "internal/packet.h"
+#include "internal/bytestring.h"
 #include "internal/nelem.h"
 #include "testutil.h"
 
@@ -134,69 +134,69 @@ static SSL_SESSION *client_session(void)
 /* Returns 1 for initial ClientHello, 2 for ClientHello with cookie */
 static int validate_client_hello(BIO *wbio)
 {
-    PACKET pkt, pkt2;
+    CBS pkt, pkt2;
     long len;
     unsigned char *data;
     int cookie_found = 0;
-    unsigned int u = 0;
+    uint8_t u8 = 0;
+    uint16_t u16 = 0;
 
     if ((len = BIO_get_mem_data(wbio, (char **)&data)) < 0)
         return 0;
-    if (!PACKET_buf_init(&pkt, data, len))
-        return 0;
+    CBS_init(&pkt, data, len);
 
     /* Check record header type */
-    if (!PACKET_get_1(&pkt, &u) || u != SSL3_RT_HANDSHAKE)
+    if (!CBS_get_u8(&pkt, &u8) || u8 != SSL3_RT_HANDSHAKE)
         return 0;
     /* Version */
-    if (!PACKET_get_net_2(&pkt, &u) || u != DTLS1_BAD_VER)
+    if (!CBS_get_u16(&pkt, &u16) || u16 != DTLS1_BAD_VER)
         return 0;
     /* Skip the rest of the record header */
-    if (!PACKET_forward(&pkt, DTLS1_RT_HEADER_LENGTH - 3))
+    if (!CBS_skip(&pkt, DTLS1_RT_HEADER_LENGTH - 3))
         return 0;
 
     /* Check it's a ClientHello */
-    if (!PACKET_get_1(&pkt, &u) || u != SSL3_MT_CLIENT_HELLO)
+    if (!CBS_get_u8(&pkt, &u8) || u8 != SSL3_MT_CLIENT_HELLO)
         return 0;
     /* Skip the rest of the handshake message header */
-    if (!PACKET_forward(&pkt, DTLS1_HM_HEADER_LENGTH - 1))
+    if (!CBS_skip(&pkt, DTLS1_HM_HEADER_LENGTH - 1))
         return 0;
 
     /* Check client version */
-    if (!PACKET_get_net_2(&pkt, &u) || u != DTLS1_BAD_VER)
+    if (!CBS_get_u16(&pkt, &u16) || u16 != DTLS1_BAD_VER)
         return 0;
 
     /* Store random */
-    if (!PACKET_copy_bytes(&pkt, client_random, SSL3_RANDOM_SIZE))
+    if (!CBS_copy_bytes(&pkt, client_random, SSL3_RANDOM_SIZE))
         return 0;
 
     /* Check session id length and content */
-    if (!PACKET_get_length_prefixed_1(&pkt, &pkt2) || !PACKET_equal(&pkt2, session_id, sizeof(session_id)))
+    if (!CBS_get_u8_length_prefixed(&pkt, &pkt2) || !CBS_mem_equal(&pkt2, session_id, sizeof(session_id)))
         return 0;
 
     /* Check cookie */
-    if (!PACKET_get_length_prefixed_1(&pkt, &pkt2))
+    if (!CBS_get_u8_length_prefixed(&pkt, &pkt2))
         return 0;
-    if (PACKET_remaining(&pkt2)) {
-        if (!PACKET_equal(&pkt2, cookie, sizeof(cookie)))
+    if (CBS_len(&pkt2)) {
+        if (!CBS_mem_equal(&pkt2, cookie, sizeof(cookie)))
             return 0;
         cookie_found = 1;
     }
 
     /* Skip ciphers */
-    if (!PACKET_get_net_2(&pkt, &u) || !PACKET_forward(&pkt, u))
+    if (!CBS_get_u16(&pkt, &u16) || !CBS_skip(&pkt, u16))
         return 0;
 
     /* Skip compression */
-    if (!PACKET_get_1(&pkt, &u) || !PACKET_forward(&pkt, u))
+    if (!CBS_get_u8(&pkt, &u8) || !CBS_skip(&pkt, u8))
         return 0;
 
     /* Skip extensions */
-    if (!PACKET_get_net_2(&pkt, &u) || !PACKET_forward(&pkt, u))
+    if (!CBS_get_u16(&pkt, &u16) || !CBS_skip(&pkt, u16))
         return 0;
 
     /* Now we are at the end */
-    if (PACKET_remaining(&pkt))
+    if (CBS_len(&pkt))
         return 0;
 
     /* Update handshake MAC for second ClientHello (with cookie) */
@@ -464,44 +464,44 @@ static int send_finished(SSL *s, BIO *rbio)
 
 static int validate_ccs(BIO *wbio)
 {
-    PACKET pkt;
+    CBS pkt;
     long len;
     unsigned char *data;
-    unsigned int u;
+    uint8_t u8;
+    uint16_t u16;
 
     len = BIO_get_mem_data(wbio, (char **)&data);
     if (len < 0)
         return 0;
 
-    if (!PACKET_buf_init(&pkt, data, len))
-        return 0;
+    CBS_init(&pkt, data, len);
 
     /* Check record header type */
-    if (!PACKET_get_1(&pkt, &u) || u != SSL3_RT_CHANGE_CIPHER_SPEC)
+    if (!CBS_get_u8(&pkt, &u8) || u8 != SSL3_RT_CHANGE_CIPHER_SPEC)
         return 0;
     /* Version */
-    if (!PACKET_get_net_2(&pkt, &u) || u != DTLS1_BAD_VER)
+    if (!CBS_get_u16(&pkt, &u16) || u16 != DTLS1_BAD_VER)
         return 0;
     /* Skip the rest of the record header */
-    if (!PACKET_forward(&pkt, DTLS1_RT_HEADER_LENGTH - 3))
+    if (!CBS_skip(&pkt, DTLS1_RT_HEADER_LENGTH - 3))
         return 0;
 
     /* Check ChangeCipherSpec message */
-    if (!PACKET_get_1(&pkt, &u) || u != SSL3_MT_CCS)
+    if (!CBS_get_u8(&pkt, &u8) || u8 != SSL3_MT_CCS)
         return 0;
     /* A DTLS1_BAD_VER ChangeCipherSpec also contains the
      * handshake sequence number (which is 2 here) */
-    if (!PACKET_get_net_2(&pkt, &u) || u != 0x0002)
+    if (!CBS_get_u16(&pkt, &u16) || u16 != 0x0002)
         return 0;
 
     /* Now check the Finished packet */
-    if (!PACKET_get_1(&pkt, &u) || u != SSL3_RT_HANDSHAKE)
+    if (!CBS_get_u8(&pkt, &u8) || u8 != SSL3_RT_HANDSHAKE)
         return 0;
-    if (!PACKET_get_net_2(&pkt, &u) || u != DTLS1_BAD_VER)
+    if (!CBS_get_u16(&pkt, &u16) || u16 != DTLS1_BAD_VER)
         return 0;
 
     /* Check epoch is now 1 */
-    if (!PACKET_get_net_2(&pkt, &u) || u != 0x0001)
+    if (!CBS_get_u16(&pkt, &u16) || u16 != 0x0001)
         return 0;
 
     /* That'll do for now. If OpenSSL accepted *our* Finished packet

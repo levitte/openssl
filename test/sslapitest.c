@@ -1021,12 +1021,12 @@ static int test_malformed_client_cert_tail(int tst)
     memcpy(cp, der, derlen);
     cp += derlen;
     if (tst == 0) {
-        *cp++ = 0; /* one stray byte: PACKET_get_net_3() fails */
+        *cp++ = 0; /* one stray byte: CBS_get_u24() fails */
     } else {
         /* truncated entry header: declares 42 bytes, provides none */
         *cp++ = 0;
         *cp++ = 0;
-        *cp++ = 42; /* PACKET_get_bytes() fails */
+        *cp++ = 42; /* CBS_get_bytes() fails */
     }
     msglen = (size_t)(cp - body);
 
@@ -11063,43 +11063,42 @@ static int get_MFL_from_client_hello(BIO *bio, int *mfl_codemfl_code)
 {
     long len;
     unsigned char *data;
-    PACKET pkt, pkt2, pkt3;
-    unsigned int MFL_code = 0, type = 0;
+    CBS pkt, pkt2, pkt3;
+    uint8_t MFL_code = 0;
+    uint16_t type = 0;
 
     if (!TEST_uint_gt(len = BIO_get_mem_data(bio, (char **)&data), 0))
         goto end;
 
-    memset(&pkt, 0, sizeof(pkt));
-    memset(&pkt2, 0, sizeof(pkt2));
-    memset(&pkt3, 0, sizeof(pkt3));
-
-    if (!TEST_long_gt(len, 0)
-        || !TEST_true(PACKET_buf_init(&pkt, data, len))
-        /* Skip the record header */
-        || !PACKET_forward(&pkt, SSL3_RT_HEADER_LENGTH)
+    if (!TEST_long_gt(len, 0))
+        goto end;
+    CBS_init(&pkt, data, len);
+    /* Skip the record header */
+    if (!CBS_skip(&pkt, SSL3_RT_HEADER_LENGTH)
         /* Skip the handshake message header */
-        || !TEST_true(PACKET_forward(&pkt, SSL3_HM_HEADER_LENGTH))
+        || !TEST_true(CBS_skip(&pkt, SSL3_HM_HEADER_LENGTH))
         /* Skip client version and random */
-        || !TEST_true(PACKET_forward(&pkt, CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE))
+        || !TEST_true(CBS_skip(&pkt, CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE))
         /* Skip session id */
-        || !TEST_true(PACKET_get_length_prefixed_1(&pkt, &pkt2))
+        || !TEST_true(CBS_get_u8_length_prefixed(&pkt, &pkt2))
         /* Skip ciphers */
-        || !TEST_true(PACKET_get_length_prefixed_2(&pkt, &pkt2))
+        || !TEST_true(CBS_get_u16_length_prefixed(&pkt, &pkt2))
         /* Skip compression */
-        || !TEST_true(PACKET_get_length_prefixed_1(&pkt, &pkt2))
+        || !TEST_true(CBS_get_u8_length_prefixed(&pkt, &pkt2))
         /* Extensions len */
-        || !TEST_true(PACKET_as_length_prefixed_2(&pkt, &pkt2)))
+        || !TEST_true(CBS_get_u16_length_prefixed(&pkt, &pkt2))
+        || !TEST_size_t_eq(CBS_len(&pkt), 0))
         goto end;
 
     /* Loop through all extensions */
-    while (PACKET_remaining(&pkt2)) {
-        if (!TEST_true(PACKET_get_net_2(&pkt2, &type))
-            || !TEST_true(PACKET_get_length_prefixed_2(&pkt2, &pkt3)))
+    while (CBS_len(&pkt2)) {
+        if (!TEST_true(CBS_get_u16(&pkt2, &type))
+            || !TEST_true(CBS_get_u16_length_prefixed(&pkt2, &pkt3)))
             goto end;
 
         if (type == TLSEXT_TYPE_max_fragment_length) {
-            if (!TEST_size_t_ne(PACKET_remaining(&pkt3), 0)
-                || !TEST_true(PACKET_get_1(&pkt3, &MFL_code)))
+            if (!TEST_size_t_ne(CBS_len(&pkt3), 0)
+                || !TEST_true(CBS_get_u8(&pkt3, &MFL_code)))
                 goto end;
 
             *mfl_codemfl_code = MFL_code;
@@ -18733,7 +18732,7 @@ err:
 /*
  * RFC 8701 GREASE test helpers.
  * We capture the raw ClientHello via msg_callback and then parse it with
- * PACKET functions to confirm that GREASE values (matching 0x?A?A) are
+ * CBS functions to confirm that GREASE values (matching 0x?A?A) are
  * present in the expected fields.
  */
 #define MAX_GREASE_CLIENT_HELLOS 2
@@ -18793,9 +18792,9 @@ static void grease_msg_cb(int write_p, int version, int content_type,
 static int check_grease_in_client_hello(const unsigned char *buf, size_t len,
     int expect_grease_keyshare)
 {
-    PACKET pkt, ciphers, session, compression, exts, ext_data;
-    PACKET inner;
-    unsigned int ext_type = 0, val = 0;
+    CBS pkt, ciphers, session, compression, exts, ext_data;
+    CBS inner;
+    uint16_t ext_type = 0, val = 0;
     size_t keyshare_count = 0;
     int found_grease_cipher = 0;
     int found_grease_ext = 0;
@@ -18804,43 +18803,37 @@ static int check_grease_in_client_hello(const unsigned char *buf, size_t len,
     int found_grease_sigalg = 0;
     int found_grease_version = 0;
 
-    memset(&pkt, 0, sizeof(pkt));
-    memset(&ciphers, 0, sizeof(ciphers));
-    memset(&session, 0, sizeof(session));
-    memset(&compression, 0, sizeof(compression));
-    memset(&exts, 0, sizeof(exts));
-    memset(&ext_data, 0, sizeof(ext_data));
-    memset(&inner, 0, sizeof(inner));
-
-    if (!TEST_ptr(buf)
-        || !TEST_true(PACKET_buf_init(&pkt, buf, len))
-        /* Skip handshake message header */
-        || !TEST_true(PACKET_forward(&pkt, SSL3_HM_HEADER_LENGTH))
+    if (!TEST_ptr(buf))
+        return 0;
+    CBS_init(&pkt, buf, len);
+    /* Skip handshake message header */
+    if (!TEST_true(CBS_skip(&pkt, SSL3_HM_HEADER_LENGTH))
         /* Skip client_version + random */
-        || !TEST_true(PACKET_forward(&pkt,
+        || !TEST_true(CBS_skip(&pkt,
             CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE))
         /* Skip session_id */
-        || !TEST_true(PACKET_get_length_prefixed_1(&pkt, &session))
+        || !TEST_true(CBS_get_u8_length_prefixed(&pkt, &session))
         /* Get cipher suites */
-        || !TEST_true(PACKET_get_length_prefixed_2(&pkt, &ciphers))
+        || !TEST_true(CBS_get_u16_length_prefixed(&pkt, &ciphers))
         /* Skip compression */
-        || !TEST_true(PACKET_get_length_prefixed_1(&pkt, &compression))
+        || !TEST_true(CBS_get_u8_length_prefixed(&pkt, &compression))
         /* Get extensions */
-        || !TEST_true(PACKET_as_length_prefixed_2(&pkt, &exts)))
+        || !TEST_true(CBS_get_u16_length_prefixed(&pkt, &exts))
+        || !TEST_size_t_eq(CBS_len(&pkt), 0))
         return 0;
 
     /* Scan cipher suites for GREASE */
-    while (PACKET_remaining(&ciphers) > 0) {
-        if (!TEST_true(PACKET_get_net_2(&ciphers, &val)))
+    while (CBS_len(&ciphers) > 0) {
+        if (!TEST_true(CBS_get_u16(&ciphers, &val)))
             return 0;
         if (is_grease(val))
             found_grease_cipher = 1;
     }
 
     /* Scan extensions */
-    while (PACKET_remaining(&exts) > 0) {
-        if (!TEST_true(PACKET_get_net_2(&exts, &ext_type))
-            || !TEST_true(PACKET_get_length_prefixed_2(&exts,
+    while (CBS_len(&exts) > 0) {
+        if (!TEST_true(CBS_get_u16(&exts, &ext_type))
+            || !TEST_true(CBS_get_u16_length_prefixed(&exts,
                 &ext_data)))
             return 0;
 
@@ -18849,11 +18842,11 @@ static int check_grease_in_client_hello(const unsigned char *buf, size_t len,
 
         /* Check for GREASE inside supported_versions */
         if (ext_type == TLSEXT_TYPE_supported_versions) {
-            if (!TEST_true(PACKET_get_length_prefixed_1(&ext_data,
+            if (!TEST_true(CBS_get_u8_length_prefixed(&ext_data,
                     &inner)))
                 return 0;
-            while (PACKET_remaining(&inner) > 0) {
-                if (!TEST_true(PACKET_get_net_2(&inner, &val)))
+            while (CBS_len(&inner) > 0) {
+                if (!TEST_true(CBS_get_u16(&inner, &val)))
                     return 0;
                 if (is_grease(val))
                     found_grease_version = 1;
@@ -18862,11 +18855,11 @@ static int check_grease_in_client_hello(const unsigned char *buf, size_t len,
 
         /* Check for GREASE inside supported_groups */
         if (ext_type == TLSEXT_TYPE_supported_groups) {
-            if (!TEST_true(PACKET_get_length_prefixed_2(&ext_data,
+            if (!TEST_true(CBS_get_u16_length_prefixed(&ext_data,
                     &inner)))
                 return 0;
-            while (PACKET_remaining(&inner) > 0) {
-                if (!TEST_true(PACKET_get_net_2(&inner, &val)))
+            while (CBS_len(&inner) > 0) {
+                if (!TEST_true(CBS_get_u16(&inner, &val)))
                     return 0;
                 if (is_grease(val))
                     found_grease_group = 1;
@@ -18875,15 +18868,13 @@ static int check_grease_in_client_hello(const unsigned char *buf, size_t len,
 
         /* Check for GREASE inside key_share */
         if (ext_type == TLSEXT_TYPE_key_share) {
-            PACKET ks_entry;
-
-            memset(&ks_entry, 0, sizeof(ks_entry));
-            if (!TEST_true(PACKET_get_length_prefixed_2(&ext_data,
+            CBS ks_entry;
+            if (!TEST_true(CBS_get_u16_length_prefixed(&ext_data,
                     &inner)))
                 return 0;
-            while (PACKET_remaining(&inner) > 0) {
-                if (!TEST_true(PACKET_get_net_2(&inner, &val))
-                    || !TEST_true(PACKET_get_length_prefixed_2(
+            while (CBS_len(&inner) > 0) {
+                if (!TEST_true(CBS_get_u16(&inner, &val))
+                    || !TEST_true(CBS_get_u16_length_prefixed(
                         &inner, &ks_entry)))
                     return 0;
                 keyshare_count++;
@@ -18894,11 +18885,11 @@ static int check_grease_in_client_hello(const unsigned char *buf, size_t len,
 
         /* Check for GREASE inside signature_algorithms */
         if (ext_type == TLSEXT_TYPE_signature_algorithms) {
-            if (!TEST_true(PACKET_get_length_prefixed_2(&ext_data,
+            if (!TEST_true(CBS_get_u16_length_prefixed(&ext_data,
                     &inner)))
                 return 0;
-            while (PACKET_remaining(&inner) > 0) {
-                if (!TEST_true(PACKET_get_net_2(&inner, &val)))
+            while (CBS_len(&inner) > 0) {
+                if (!TEST_true(CBS_get_u16(&inner, &val)))
                     return 0;
                 if (is_grease(val))
                     found_grease_sigalg = 1;

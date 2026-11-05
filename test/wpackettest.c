@@ -11,6 +11,7 @@
 #include <openssl/buffer.h>
 #include <openssl/rand.h>
 #include "internal/packet_quic.h"
+#include "internal/bytestring_quic.h"
 #include "testutil.h"
 
 static const unsigned char simple1[] = { 0xff };
@@ -583,7 +584,7 @@ static int test_WPACKET_quic_vlint_random(void)
     uint64_t expected, actual = 0;
     unsigned char rand_data[9];
     WPACKET pkt;
-    PACKET read_pkt = { 0 };
+    CBS read_pkt;
 
     for (i = 0; i < 10000; ++i) {
         if (!TEST_int_gt(RAND_bytes(rand_data, sizeof(rand_data)), 0))
@@ -614,8 +615,8 @@ static int test_WPACKET_quic_vlint_random(void)
             || !TEST_true(WPACKET_get_total_written(&pkt, &written)))
             return cleanup(&pkt);
 
-        if (!TEST_true(PACKET_buf_init(&read_pkt, (unsigned char *)buf->data, written))
-            || !TEST_true(PACKET_get_quic_vlint(&read_pkt, &actual))
+        CBS_init(&read_pkt, (unsigned char *)buf->data, written);
+        if (!TEST_true(CBS_get_quic_vlint(&read_pkt, &actual))
             || !TEST_uint64_t_eq(expected, actual))
             return cleanup(&pkt);
 

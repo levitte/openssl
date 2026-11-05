@@ -17,7 +17,7 @@
 #include <openssl/err.h>
 #include <time.h>
 
-#include "internal/packet.h"
+#include "internal/bytestring.h"
 
 #include "testutil.h"
 
@@ -39,9 +39,9 @@ static int test_client_hello(int currtest)
     BIO *wbio;
     long len;
     unsigned char *data;
-    PACKET pkt, pkt2, pkt3;
+    CBS pkt, pkt2, pkt3;
     char *dummytick = "Hello World!";
-    unsigned int type = 0;
+    uint16_t type = 0;
     int testresult = 0;
     BIO *sessbio = NULL;
     SSL_SESSION *sess = NULL;
@@ -103,36 +103,37 @@ static int test_client_hello(int currtest)
         goto end;
     }
 
-    if (!TEST_long_ge(len = BIO_get_mem_data(wbio, (char **)&data), 0)
-        || !TEST_true(PACKET_buf_init(&pkt, data, len))
-        /* Skip the record header */
-        || !PACKET_forward(&pkt, SSL3_RT_HEADER_LENGTH))
+    if (!TEST_long_ge(len = BIO_get_mem_data(wbio, (char **)&data), 0))
+        goto end;
+    CBS_init(&pkt, data, len);
+    if (!CBS_skip(&pkt, SSL3_RT_HEADER_LENGTH))
         goto end;
 
     /* Skip the handshake message header */
-    if (!TEST_true(PACKET_forward(&pkt, SSL3_HM_HEADER_LENGTH))
+    if (!TEST_true(CBS_skip(&pkt, SSL3_HM_HEADER_LENGTH))
         /* Skip client version and random */
-        || !TEST_true(PACKET_forward(&pkt, CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE))
+        || !TEST_true(CBS_skip(&pkt, CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE))
         /* Skip session id */
-        || !TEST_true(PACKET_get_length_prefixed_1(&pkt, &pkt2))
+        || !TEST_true(CBS_get_u8_length_prefixed(&pkt, &pkt2))
         /* Skip ciphers */
-        || !TEST_true(PACKET_get_length_prefixed_2(&pkt, &pkt2))
+        || !TEST_true(CBS_get_u16_length_prefixed(&pkt, &pkt2))
         /* Skip compression */
-        || !TEST_true(PACKET_get_length_prefixed_1(&pkt, &pkt2))
+        || !TEST_true(CBS_get_u8_length_prefixed(&pkt, &pkt2))
         /* Extensions len */
-        || !TEST_true(PACKET_as_length_prefixed_2(&pkt, &pkt2)))
+        || !TEST_true(CBS_get_u16_length_prefixed(&pkt, &pkt2))
+        || !TEST_size_t_eq(CBS_len(&pkt), 0))
         goto end;
 
     /* Loop through all extensions */
-    while (PACKET_remaining(&pkt2)) {
+    while (CBS_len(&pkt2)) {
 
-        if (!TEST_true(PACKET_get_net_2(&pkt2, &type))
-            || !TEST_true(PACKET_get_length_prefixed_2(&pkt2, &pkt3)))
+        if (!TEST_true(CBS_get_u16(&pkt2, &type))
+            || !TEST_true(CBS_get_u16_length_prefixed(&pkt2, &pkt3)))
             goto end;
 
         if (type == TLSEXT_TYPE_session_ticket) {
             if (currtest == TEST_SET_SESSION_TICK_DATA_VER_NEG) {
-                if (TEST_true(PACKET_equal(&pkt3, dummytick,
+                if (TEST_true(CBS_mem_equal(&pkt3, (const uint8_t *)dummytick,
                         strlen(dummytick)))) {
                     /* Ticket data is as we expected */
                     testresult = 1;

@@ -12,7 +12,7 @@
 #include <openssl/ssl3.h>
 #include <openssl/tls1.h>
 #include "ssl/ssl_local.h"
-#include "internal/packet.h"
+#include "internal/bytestring.h"
 #include "helpers/ssltestlib.h"
 #include "testutil.h"
 
@@ -114,24 +114,26 @@ static void info_cb(const SSL *ssl, int type, int val)
 
 static void parse_ch_exts(const unsigned char *buf, size_t len, struct stats *x)
 {
-    PACKET pkt, e, ex;
-    unsigned int v;
+    CBS pkt, e, ex;
+    uint8_t v8;
+    uint16_t v16;
 
-    if (!PACKET_buf_init(&pkt, buf, len)
-        || !PACKET_forward(&pkt, 4 + 2 + 32)
-        || !PACKET_get_1(&pkt, &v)
-        || !PACKET_forward(&pkt, v)
-        || !PACKET_get_net_2(&pkt, &v)
-        || !PACKET_forward(&pkt, v)
-        || !PACKET_get_1(&pkt, &v)
-        || !PACKET_forward(&pkt, v)
-        || !PACKET_as_length_prefixed_2(&pkt, &e))
+    CBS_init(&pkt, buf, len);
+    if (!CBS_skip(&pkt, 4 + 2 + 32)
+        || !CBS_get_u8(&pkt, &v8)
+        || !CBS_skip(&pkt, v8)
+        || !CBS_get_u16(&pkt, &v16)
+        || !CBS_skip(&pkt, v16)
+        || !CBS_get_u8(&pkt, &v8)
+        || !CBS_skip(&pkt, v8)
+        || !CBS_get_u16_length_prefixed(&pkt, &e)
+        || CBS_len(&pkt) != 0)
         return;
 
-    while (PACKET_remaining(&e) > 0) {
-        if (!PACKET_get_net_2(&e, &v) || !PACKET_get_length_prefixed_2(&e, &ex))
+    while (CBS_len(&e) > 0) {
+        if (!CBS_get_u16(&e, &v16) || !CBS_get_u16_length_prefixed(&e, &ex))
             return;
-        switch (v) {
+        switch (v16) {
         case TLSEXT_TYPE_psk:
             x->ch_has_psk = 1;
             break;
@@ -154,20 +156,22 @@ static void parse_ch_exts(const unsigned char *buf, size_t len, struct stats *x)
 
 static void parse_sh_exts(const unsigned char *buf, size_t len, struct stats *x)
 {
-    PACKET pkt, e, ex;
-    unsigned int v;
+    CBS pkt, e, ex;
+    uint8_t v8;
+    uint16_t v16;
 
-    if (!PACKET_buf_init(&pkt, buf, len)
-        || !PACKET_forward(&pkt, 4 + 2 + 32)
-        || !PACKET_get_1(&pkt, &v)
-        || !PACKET_forward(&pkt, v + 2 + 1)
-        || !PACKET_as_length_prefixed_2(&pkt, &e))
+    CBS_init(&pkt, buf, len);
+    if (!CBS_skip(&pkt, 4 + 2 + 32)
+        || !CBS_get_u8(&pkt, &v8)
+        || !CBS_skip(&pkt, v8 + 2 + 1)
+        || !CBS_get_u16_length_prefixed(&pkt, &e)
+        || CBS_len(&pkt) != 0)
         return;
 
-    while (PACKET_remaining(&e) > 0) {
-        if (!PACKET_get_net_2(&e, &v) || !PACKET_get_length_prefixed_2(&e, &ex))
+    while (CBS_len(&e) > 0) {
+        if (!CBS_get_u16(&e, &v16) || !CBS_get_u16_length_prefixed(&e, &ex))
             return;
-        switch (v) {
+        switch (v16) {
         case TLSEXT_TYPE_psk:
             x->sh_has_psk = 1;
             break;
@@ -182,18 +186,19 @@ static void parse_sh_exts(const unsigned char *buf, size_t len, struct stats *x)
 
 static void parse_ee_exts(const unsigned char *buf, size_t len, struct stats *x)
 {
-    PACKET pkt, e, ex;
-    unsigned int v;
+    CBS pkt, e, ex;
+    uint16_t v16;
 
-    if (!PACKET_buf_init(&pkt, buf, len)
-        || !PACKET_forward(&pkt, 4)
-        || !PACKET_as_length_prefixed_2(&pkt, &e))
+    CBS_init(&pkt, buf, len);
+    if (!CBS_skip(&pkt, 4)
+        || !CBS_get_u16_length_prefixed(&pkt, &e)
+        || CBS_len(&pkt) != 0)
         return;
 
-    while (PACKET_remaining(&e) > 0) {
-        if (!PACKET_get_net_2(&e, &v) || !PACKET_get_length_prefixed_2(&e, &ex))
+    while (CBS_len(&e) > 0) {
+        if (!CBS_get_u16(&e, &v16) || !CBS_get_u16_length_prefixed(&e, &ex))
             return;
-        switch (v) {
+        switch (v16) {
         case TLSEXT_TYPE_early_data:
             x->ee_has_early_data = 1;
             break;

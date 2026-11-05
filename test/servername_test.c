@@ -18,7 +18,7 @@
 #include <openssl/err.h>
 #include <time.h>
 
-#include "internal/packet.h"
+#include "internal/bytestring.h"
 
 #include "testutil.h"
 #include "internal/nelem.h"
@@ -41,49 +41,48 @@ static int get_sni_from_client_hello(BIO *bio, char **sni)
 {
     long len;
     unsigned char *data;
-    PACKET pkt, pkt2, pkt3, pkt4, pkt5;
-    unsigned int servname_type = 0, type = 0;
+    CBS pkt, pkt2, pkt3, pkt4, pkt5;
+    uint8_t servname_type = 0;
+    uint16_t type = 0;
     int ret = 0;
 
-    memset(&pkt, 0, sizeof(pkt));
-    memset(&pkt2, 0, sizeof(pkt2));
-    memset(&pkt3, 0, sizeof(pkt3));
-    memset(&pkt4, 0, sizeof(pkt4));
-    memset(&pkt5, 0, sizeof(pkt5));
-
-    if (!TEST_long_ge(len = BIO_get_mem_data(bio, (char **)&data), 0)
-        || !TEST_true(PACKET_buf_init(&pkt, data, len))
-        /* Skip the record header */
-        || !PACKET_forward(&pkt, SSL3_RT_HEADER_LENGTH)
+    if (!TEST_long_ge(len = BIO_get_mem_data(bio, (char **)&data), 0))
+        goto end;
+    CBS_init(&pkt, data, len);
+    /* Skip the record header */
+    if (!CBS_skip(&pkt, SSL3_RT_HEADER_LENGTH)
         /* Skip the handshake message header */
-        || !TEST_true(PACKET_forward(&pkt, SSL3_HM_HEADER_LENGTH))
+        || !TEST_true(CBS_skip(&pkt, SSL3_HM_HEADER_LENGTH))
         /* Skip client version and random */
-        || !TEST_true(PACKET_forward(&pkt, CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE))
+        || !TEST_true(CBS_skip(&pkt, CLIENT_VERSION_LEN + SSL3_RANDOM_SIZE))
         /* Skip session id */
-        || !TEST_true(PACKET_get_length_prefixed_1(&pkt, &pkt2))
+        || !TEST_true(CBS_get_u8_length_prefixed(&pkt, &pkt2))
         /* Skip ciphers */
-        || !TEST_true(PACKET_get_length_prefixed_2(&pkt, &pkt2))
+        || !TEST_true(CBS_get_u16_length_prefixed(&pkt, &pkt2))
         /* Skip compression */
-        || !TEST_true(PACKET_get_length_prefixed_1(&pkt, &pkt2))
+        || !TEST_true(CBS_get_u8_length_prefixed(&pkt, &pkt2))
         /* Extensions len */
-        || !TEST_true(PACKET_as_length_prefixed_2(&pkt, &pkt2)))
+        || !TEST_true(CBS_get_u16_length_prefixed(&pkt, &pkt2))
+        || !TEST_size_t_eq(CBS_len(&pkt), 0))
         goto end;
 
     /* Loop through all extensions for SNI */
-    while (PACKET_remaining(&pkt2)) {
-        if (!TEST_true(PACKET_get_net_2(&pkt2, &type))
-            || !TEST_true(PACKET_get_length_prefixed_2(&pkt2, &pkt3)))
+    while (CBS_len(&pkt2)) {
+        if (!TEST_true(CBS_get_u16(&pkt2, &type))
+            || !TEST_true(CBS_get_u16_length_prefixed(&pkt2, &pkt3)))
             goto end;
         if (type == TLSEXT_TYPE_server_name) {
-            if (!TEST_true(PACKET_get_length_prefixed_2(&pkt3, &pkt4))
-                || !TEST_size_t_ne(PACKET_remaining(&pkt4), 0)
-                || !TEST_true(PACKET_get_1(&pkt4, &servname_type))
+            if (!TEST_true(CBS_get_u16_length_prefixed(&pkt3, &pkt4))
+                || !TEST_size_t_ne(CBS_len(&pkt4), 0)
+                || !TEST_true(CBS_get_u8(&pkt4, &servname_type))
                 || !TEST_uint_eq(servname_type, TLSEXT_NAMETYPE_host_name)
-                || !TEST_true(PACKET_get_length_prefixed_2(&pkt4, &pkt5))
-                || !TEST_size_t_le(PACKET_remaining(&pkt5), TLSEXT_MAXLEN_host_name)
-                || !TEST_false(PACKET_contains_zero_byte(&pkt5))
-                || !TEST_true(PACKET_strndup(&pkt5, sni)))
+                || !TEST_true(CBS_get_u16_length_prefixed(&pkt4, &pkt5))
+                || !TEST_size_t_le(CBS_len(&pkt5), TLSEXT_MAXLEN_host_name)
+                || !TEST_false(CBS_contains_zero_byte(&pkt5))
+                || !TEST_ptr(*sni = OPENSSL_malloc(CBS_len(&pkt5) + 1)))
                 goto end;
+            memcpy(*sni, CBS_data(&pkt5), CBS_len(&pkt5));
+            (*sni)[CBS_len(&pkt5)] = '\0';
             ret = 1;
             goto end;
         }

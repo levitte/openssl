@@ -11,7 +11,7 @@
 #include <openssl/hpke.h>
 #include "testutil.h"
 #include "helpers/ssltestlib.h"
-#include "internal/packet.h"
+#include "internal/bytestring.h"
 
 #ifndef OPENSSL_NO_ECH
 
@@ -37,11 +37,10 @@ static unsigned int ech_test_cb(SSL *s, const char *str)
 /* ClientHello callback */
 static int ch_test_cb(SSL *ssl, int *al, void *arg)
 {
-    char *servername = NULL;
     const unsigned char *pos;
     size_t remaining;
-    unsigned int servname_type;
-    PACKET pkt, sni, hostname;
+    uint8_t servname_type;
+    CBS pkt, sni, hostname;
 
     if (verbose) {
         TEST_info("ch_test_cb called");
@@ -55,18 +54,19 @@ static int ch_test_cb(SSL *ssl, int *al, void *arg)
             &remaining)
         || remaining <= 2)
         goto give_up;
-    if (!PACKET_buf_init(&pkt, pos, remaining)
-        || !PACKET_as_length_prefixed_2(&pkt, &sni)
-        || !PACKET_get_1(&sni, &servname_type)
+    CBS_init(&pkt, pos, remaining);
+    if (!CBS_get_u16_length_prefixed(&pkt, &sni)
+        || CBS_len(&pkt) != 0
+        || !CBS_get_u8(&sni, &servname_type)
         || servname_type != TLSEXT_NAMETYPE_host_name
-        || !PACKET_as_length_prefixed_2(&sni, &hostname)
-        || (PACKET_remaining(&hostname) > TLSEXT_MAXLEN_host_name)
-        || PACKET_contains_zero_byte(&hostname)
-        || !PACKET_strndup(&hostname, &servername))
+        || !CBS_get_u16_length_prefixed(&sni, &hostname)
+        || CBS_len(&sni) != 0
+        || (CBS_len(&hostname) > TLSEXT_MAXLEN_host_name)
+        || CBS_contains_zero_byte(&hostname))
         goto give_up;
     if (verbose)
-        TEST_info("servername: %s", servername);
-    OPENSSL_free(servername);
+        TEST_info("servername: %.*s", (int)CBS_len(&hostname),
+            (const char *)CBS_data(&hostname));
     /* signal to caller all is good */
     ch_test_cb_ok = 1;
     return 1;

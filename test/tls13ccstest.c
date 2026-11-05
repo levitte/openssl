@@ -11,7 +11,7 @@
 #include <string.h>
 #include "helpers/ssltestlib.h"
 #include "testutil.h"
-#include "internal/packet.h"
+#include "internal/bytestring.h"
 
 static char *cert = NULL;
 static char *privkey = NULL;
@@ -90,8 +90,10 @@ static int watchccs_write(BIO *bio, const char *in, int inl)
 {
     int ret = 0;
     BIO *next = BIO_next(bio);
-    PACKET pkt, msg, msgbody, sessionid;
-    unsigned int rectype, recvers, msgtype, expectedrecvers;
+    CBS pkt, msg, msgbody, sessionid;
+    uint8_t rectype, msgtype;
+    uint16_t recvers;
+    unsigned int expectedrecvers;
 
     if (inl <= 0)
         return 0;
@@ -100,21 +102,20 @@ static int watchccs_write(BIO *bio, const char *in, int inl)
 
     BIO_clear_retry_flags(bio);
 
-    if (!PACKET_buf_init(&pkt, (const unsigned char *)in, inl))
-        return 0;
+    CBS_init(&pkt, (const unsigned char *)in, inl);
 
     /* We assume that we always write complete records each time */
-    while (PACKET_remaining(&pkt)) {
-        if (!PACKET_get_1(&pkt, &rectype)
-            || !PACKET_get_net_2(&pkt, &recvers)
-            || !PACKET_get_length_prefixed_2(&pkt, &msg))
+    while (CBS_len(&pkt)) {
+        if (!CBS_get_u8(&pkt, &rectype)
+            || !CBS_get_u16(&pkt, &recvers)
+            || !CBS_get_u16_length_prefixed(&pkt, &msg))
             return 0;
 
         expectedrecvers = TLS1_2_VERSION;
 
         if (rectype == SSL3_RT_HANDSHAKE) {
-            if (!PACKET_get_1(&msg, &msgtype)
-                || !PACKET_get_length_prefixed_3(&msg, &msgbody))
+            if (!CBS_get_u8(&msg, &msgtype)
+                || !CBS_get_u24_length_prefixed(&msg, &msgbody))
                 return 0;
             if (msgtype == SSL3_MT_CLIENT_HELLO) {
                 chseen++;
@@ -123,25 +124,25 @@ static int watchccs_write(BIO *bio, const char *in, int inl)
                  * Skip legacy_version (2 bytes) and Random (32 bytes) to read
                  * session_id.
                  */
-                if (!PACKET_forward(&msgbody, 34)
-                    || !PACKET_get_length_prefixed_1(&msgbody, &sessionid))
+                if (!CBS_skip(&msgbody, 34)
+                    || !CBS_get_u8_length_prefixed(&msgbody, &sessionid))
                     return 0;
 
                 if (chseen == 1) {
                     expectedrecvers = TLS1_VERSION;
 
                     /* Save the session id for later */
-                    chsessidlen = PACKET_remaining(&sessionid);
-                    if (!PACKET_copy_bytes(&sessionid, chsessid, chsessidlen))
+                    chsessidlen = CBS_len(&sessionid);
+                    if (!CBS_copy_bytes(&sessionid, chsessid, chsessidlen))
                         return 0;
                 } else {
                     /*
                      * Check the session id for the second ClientHello is the
                      * same as the first one.
                      */
-                    if (PACKET_remaining(&sessionid) != chsessidlen
+                    if (CBS_len(&sessionid) != chsessidlen
                         || (chsessidlen > 0
-                            && memcmp(chsessid, PACKET_data(&sessionid),
+                            && memcmp(chsessid, CBS_data(&sessionid),
                                    chsessidlen)
                                 != 0))
                         badsessid = 1;
@@ -152,17 +153,17 @@ static int watchccs_write(BIO *bio, const char *in, int inl)
                  * Skip legacy_version (2 bytes) and Random (32 bytes) to read
                  * session_id.
                  */
-                if (!PACKET_forward(&msgbody, 34)
-                    || !PACKET_get_length_prefixed_1(&msgbody, &sessionid))
+                if (!CBS_skip(&msgbody, 34)
+                    || !CBS_get_u8_length_prefixed(&msgbody, &sessionid))
                     return 0;
 
                 /*
                  * Check the session id is the same as the one in the
                  * ClientHello
                  */
-                if (PACKET_remaining(&sessionid) != chsessidlen
+                if (CBS_len(&sessionid) != chsessidlen
                     || (chsessidlen > 0
-                        && memcmp(chsessid, PACKET_data(&sessionid),
+                        && memcmp(chsessid, CBS_data(&sessionid),
                                chsessidlen)
                             != 0))
                     badsessid = 1;

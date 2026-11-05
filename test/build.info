@@ -217,7 +217,7 @@ IF[{- !$disabled{tests} -}]
   INCLUDE[fatalerrtest]=../include ../apps/include
   DEPEND[fatalerrtest]=../libcrypto ../libssl libtestutil.a
 
-  SOURCE[tls13ccstest]=tls13ccstest.c helpers/ssltestlib.c
+  SOURCE[tls13ccstest]=tls13ccstest.c helpers/ssltestlib.c ../crypto/bytestring.c
   INCLUDE[tls13ccstest]=../include ../apps/include
   DEPEND[tls13ccstest]=../libcrypto ../libssl libtestutil.a
 
@@ -421,11 +421,11 @@ IF[{- !$disabled{tests} -}]
   INCLUDE[verify_extra_test]=../include ../apps/include
   DEPEND[verify_extra_test]=../libcrypto libtestutil.a
 
-  SOURCE[clienthellotest]=clienthellotest.c
+  SOURCE[clienthellotest]=clienthellotest.c ../crypto/bytestring.c
   INCLUDE[clienthellotest]=../include ../apps/include
   DEPEND[clienthellotest]=../libcrypto ../libssl libtestutil.a
 
-  SOURCE[bad_dtls_test]=bad_dtls_test.c
+  SOURCE[bad_dtls_test]=bad_dtls_test.c ../crypto/bytestring.c
   INCLUDE[bad_dtls_test]=../include ../apps/include
   DEPEND[bad_dtls_test]=../libcrypto ../libssl libtestutil.a
 
@@ -633,7 +633,7 @@ IF[{- !$disabled{tests} -}]
   INCLUDE[x509aux]=../include ../apps/include
   DEPEND[x509aux]=../libcrypto libtestutil.a
 
-  SOURCE[asynciotest]=asynciotest.c helpers/ssltestlib.c
+  SOURCE[asynciotest]=asynciotest.c helpers/ssltestlib.c ../crypto/bytestring.c
   INCLUDE[asynciotest]=../include ../apps/include
   DEPEND[asynciotest]=../libcrypto ../libssl libtestutil.a
 
@@ -853,7 +853,7 @@ IF[{- !$disabled{tests} -}]
   INCLUDE[ciphername_test]=../include ../apps/include
   DEPEND[ciphername_test]=../libcrypto ../libssl libtestutil.a
 
-  SOURCE[servername_test]=servername_test.c helpers/ssltestlib.c
+  SOURCE[servername_test]=servername_test.c helpers/ssltestlib.c ../crypto/bytestring.c
   INCLUDE[servername_test]=../include ../apps/include
   DEPEND[servername_test]=../libcrypto ../libssl libtestutil.a
 
@@ -1092,7 +1092,7 @@ IF[{- !$disabled{tests} -}]
 
     IF[{- !$disabled{ecx} && !$disabled{tls1_2} && !$disabled{tls1_3} -}]
       PROGRAMS{noinst}=tls13ticket_test
-      SOURCE[tls13ticket_test]=tls13tickettest.c helpers/ssltestlib.c
+      SOURCE[tls13ticket_test]=tls13tickettest.c helpers/ssltestlib.c ../crypto/bytestring.c
       INCLUDE[tls13ticket_test]=../include ../apps/include ..
       DEPEND[tls13ticket_test]=../libcrypto ../libssl libtestutil.a
     ENDIF
