@@ -3156,7 +3156,7 @@ MSG_PROCESS_RETURN tls_process_certificate_request(SSL_CONNECTION *s,
         s->pha_context = NULL;
         s->pha_context_len = 0;
 
-        if (!CBS_get_u8_length_prefixed(pkt, &reqctx) || !ossl_cbs_memdup(&reqctx, &s->pha_context, &s->pha_context_len)) {
+        if (!CBS_get_u8_length_prefixed(pkt, &reqctx) || !CBS_stow(&reqctx, &s->pha_context, &s->pha_context_len)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
             return MSG_PROCESS_ERROR;
         }
@@ -3188,7 +3188,7 @@ MSG_PROCESS_RETURN tls_process_certificate_request(SSL_CONNECTION *s,
             return MSG_PROCESS_ERROR;
         }
 
-        if (!ossl_cbs_memdup(&ctypes, &s->s3.tmp.ctype, &s->s3.tmp.ctype_len)) {
+        if (!CBS_stow(&ctypes, &s->s3.tmp.ctype, &s->s3.tmp.ctype_len)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return MSG_PROCESS_ERROR;
         }

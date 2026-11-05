@@ -210,7 +210,7 @@ static int ech_decode_echconfig_exts(OSSL_ECHSTORE_ENTRY *ee, CBS *exts)
             ERR_raise(ERR_LIB_SSL, SSL_R_BAD_ECHCONFIG_EXTENSION);
             goto err;
         }
-        if (!ossl_cbs_memdup(&ext, &extval, &extlen)) {
+        if (!CBS_stow(&ext, &extval, &extlen)) {
             ERR_raise(ERR_LIB_SSL, SSL_R_BAD_ECHCONFIG_EXTENSION);
             goto err;
         }
@@ -391,7 +391,7 @@ static int ech_decode_one_entry(OSSL_ECHSTORE_ENTRY **rent, CBS *pkt,
     if (!CBS_copy_bytes(&ver_pkt, &ee->config_id, 1)
         || !CBS_get_u16(&ver_pkt, &tmpi)
         || !CBS_get_u16_length_prefixed(&ver_pkt, &pub_pkt)
-        || !ossl_cbs_memdup(&pub_pkt, &ee->pub, &ee->pub_len)
+        || !CBS_stow(&pub_pkt, &ee->pub, &ee->pub_len)
         || !CBS_get_u16_length_prefixed(&ver_pkt, &cipher_suites)
         || (suiteoctets = CBS_len(&cipher_suites)) <= 0
         || (suiteoctets % 2) == 1

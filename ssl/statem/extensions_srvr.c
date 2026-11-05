@@ -477,7 +477,7 @@ int tls_parse_ctos_alpn(SSL_CONNECTION *s, CBS *pkt, unsigned int context,
     OPENSSL_free(s->s3.alpn_proposed);
     s->s3.alpn_proposed = NULL;
     s->s3.alpn_proposed_len = 0;
-    if (!ossl_cbs_memdup(&save_protocol_list,
+    if (!CBS_stow(&save_protocol_list,
             &s->s3.alpn_proposed, &s->s3.alpn_proposed_len)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;

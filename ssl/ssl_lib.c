@@ -7682,7 +7682,7 @@ int ssl_cache_cipherlist(SSL_CONNECTION *s, CBS *cipher_suites)
     s->s3.tmp.ciphers_raw = NULL;
     s->s3.tmp.ciphers_rawlen = 0;
 
-    if (!ossl_cbs_memdup(cipher_suites, &s->s3.tmp.ciphers_raw,
+    if (!CBS_stow(cipher_suites, &s->s3.tmp.ciphers_raw,
             &s->s3.tmp.ciphers_rawlen)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;

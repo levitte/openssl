@@ -766,7 +766,7 @@ static int tls_parse_ec_pt_formats(SSL_CONNECTION *s, CBS *pkt,
         return 0;
     }
     if (!s->hit
-        && !ossl_cbs_memdup(&list, &s->ext.peer_ecpointformats,
+        && !CBS_stow(&list, &s->ext.peer_ecpointformats,
             &s->ext.peer_ecpointformats_len)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;

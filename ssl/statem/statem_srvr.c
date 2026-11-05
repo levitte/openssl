@@ -5057,7 +5057,7 @@ MSG_PROCESS_RETURN tls_process_next_proto(SSL_CONNECTION *s, CBS *pkt)
         return MSG_PROCESS_ERROR;
     }
 
-    if (!ossl_cbs_memdup(&next_proto, &s->ext.npn, &next_proto_len)) {
+    if (!CBS_stow(&next_proto, &s->ext.npn, &next_proto_len)) {
         s->ext.npn_len = 0;
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return MSG_PROCESS_ERROR;

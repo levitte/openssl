@@ -2488,7 +2488,7 @@ int tls_parse_stoc_cookie(SSL_CONNECTION *s, CBS *pkt, unsigned int context,
 
     if (!CBS_get_u16_length_prefixed(pkt, &cookie) || CBS_len(pkt) != 0
         || CBS_len(&cookie) == 0
-        || !ossl_cbs_memdup(&cookie, &s->ext.tls13_cookie,
+        || !CBS_stow(&cookie, &s->ext.tls13_cookie,
             &s->ext.tls13_cookie_len)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
         return 0;
