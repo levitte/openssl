@@ -234,7 +234,7 @@ err:
  * The size of the signature is len * |n| bytes (where len = 2 * |n| + 3).
  *
  * @param ctx Contains SLH_DSA algorithm functions and constants.
- * @param sig_rpkt A PACKET object to read a WOTS+ signature from
+ * @param sig_rpkt A CBS object to read a WOTS+ signature from
  * @param msg A message of size |n| bytes.
  * @param pk_seed The public key seed of size |n|.
  * @param adrs An ADRS object containing the layer address, tree address and
@@ -244,7 +244,7 @@ err:
  * @returns 1 on success, or 0 on error.
  */
 int ossl_slh_wots_pk_from_sig(SLH_DSA_HASH_CTX *ctx,
-    PACKET *sig_rpkt, const uint8_t *msg,
+    CBS *sig_rpkt, const uint8_t *msg,
     const uint8_t *pk_seed, uint8_t *adrs,
     uint8_t *pk_out, size_t pk_out_len)
 {
@@ -255,7 +255,7 @@ int ossl_slh_wots_pk_from_sig(SLH_DSA_HASH_CTX *ctx,
     size_t n = key->params->n;
     size_t len1 = SLH_WOTS_LEN1(n);
     size_t len = len1 + SLH_WOTS_LEN2; /* 2n + 3 */
-    const uint8_t *sig_i; /* Pointer into |sig_rpkt| buffer */
+    CBS sig_i; /* View into |sig_rpkt| buffer */
     uint8_t tmp[SLH_WOTS_LEN_MAX * SLH_MAX_N];
     WPACKET pkt, *tmp_pkt = &pkt;
     size_t tmp_len = 0;
@@ -274,8 +274,8 @@ int ossl_slh_wots_pk_from_sig(SLH_DSA_HASH_CTX *ctx,
     /* Compute the end nodes for each of the chains */
     for (i = 0; i < len; ++i) {
         set_chain_address(adrs, (uint32_t)i);
-        if (!PACKET_get_bytes(sig_rpkt, &sig_i, n)
-            || !slh_wots_chain(ctx, sig_i, msg_and_csum_nibbles[i],
+        if (!CBS_get_bytes(sig_rpkt, &sig_i, n)
+            || !slh_wots_chain(ctx, CBS_data(&sig_i), msg_and_csum_nibbles[i],
                 NIBBLE_MASK - msg_and_csum_nibbles[i],
                 pk_seed, adrs, tmp_pkt))
             goto err;

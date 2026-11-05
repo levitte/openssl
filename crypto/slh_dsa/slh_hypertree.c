@@ -45,7 +45,7 @@ int ossl_slh_ht_sign(SLH_DSA_HASH_CTX *ctx,
     uint32_t d = params->d;
     uint32_t hm = params->hm;
     uint8_t *psig;
-    PACKET rpkt, *xmss_sig_rpkt = &rpkt;
+    CBS rpkt, *xmss_sig_rpkt = &rpkt;
 
     mask = (1 << hm) - 1; /* A mod 2^h = A & ((2^h - 1))) */
 
@@ -79,9 +79,8 @@ int ossl_slh_ht_sign(SLH_DSA_HASH_CTX *ctx,
          * the PK_ROOT (i.e. the public key of the top level tree).
          */
         if (layer < d - 1) {
-            if (!PACKET_buf_init(xmss_sig_rpkt, psig,
-                    WPACKET_get_curr(sig_wpkt) - psig))
-                goto err;
+            CBS_init(xmss_sig_rpkt, psig,
+                WPACKET_get_curr(sig_wpkt) - psig);
             if (!ossl_slh_xmss_pk_from_sig(ctx, leaf_id, xmss_sig_rpkt, root,
                     pk_seed, adrs, root, sizeof(root)))
                 goto err;
@@ -109,7 +108,7 @@ err:
  *
  * @returns 1 if the computed XMSS public key matches pk_root, or 0 otherwise.
  */
-int ossl_slh_ht_verify(SLH_DSA_HASH_CTX *ctx, const uint8_t *msg, PACKET *sig_pkt,
+int ossl_slh_ht_verify(SLH_DSA_HASH_CTX *ctx, const uint8_t *msg, CBS *sig_pkt,
     const uint8_t *pk_seed, uint64_t tree_id, uint32_t leaf_id,
     const uint8_t *pk_root)
 {

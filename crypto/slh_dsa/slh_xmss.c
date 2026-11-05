@@ -140,7 +140,7 @@ int ossl_slh_xmss_sign(SLH_DSA_HASH_CTX *ctx, const uint8_t *msg,
  * @returns 1 on success, or 0 on error.
  */
 int ossl_slh_xmss_pk_from_sig(SLH_DSA_HASH_CTX *ctx, uint32_t node_id,
-    PACKET *sig_rpkt, const uint8_t *msg,
+    CBS *sig_rpkt, const uint8_t *msg,
     const uint8_t *pk_seed, uint8_t *adrs,
     uint8_t *pk_out, size_t pk_out_len)
 {
@@ -154,7 +154,7 @@ int ossl_slh_xmss_pk_from_sig(SLH_DSA_HASH_CTX *ctx, uint32_t node_id,
     size_t n = key->params->n;
     uint32_t hm = key->params->hm;
     uint8_t *node = pk_out;
-    const uint8_t *auth_path; /* Pointer to buffer offset in |pkt_sig| */
+    CBS auth_path; /* View into the |sig_rpkt| buffer */
 
     adrsf->set_type_and_clear(adrs, SLH_ADRS_TYPE_WOTS_HASH);
     adrsf->set_keypair_address(adrs, node_id);
@@ -165,18 +165,20 @@ int ossl_slh_xmss_pk_from_sig(SLH_DSA_HASH_CTX *ctx, uint32_t node_id,
     adrsf->set_type_and_clear(adrs, SLH_ADRS_TYPE_TREE);
 
     for (k = 0; k < hm; ++k) {
-        if (!PACKET_get_bytes(sig_rpkt, &auth_path, n))
+        if (!CBS_get_bytes(sig_rpkt, &auth_path, n))
             return 0;
         set_tree_height(adrs, k + 1);
         if ((node_id & 1) == 0) { /* even */
             node_id >>= 1;
             set_tree_index(adrs, node_id);
-            if (!H(ctx, pk_seed, adrs, node, auth_path, node, pk_out_len))
+            if (!H(ctx, pk_seed, adrs, node, CBS_data(&auth_path), node,
+                    pk_out_len))
                 return 0;
         } else { /* odd */
             node_id = (node_id - 1) >> 1;
             set_tree_index(adrs, node_id);
-            if (!H(ctx, pk_seed, adrs, auth_path, node, node, pk_out_len))
+            if (!H(ctx, pk_seed, adrs, CBS_data(&auth_path), node, node,
+                    pk_out_len))
                 return 0;
         }
     }

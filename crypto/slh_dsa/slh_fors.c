@@ -200,7 +200,7 @@ err:
  * A FORS signature has a size of (k * (a + 1) * n) bytes
  *
  * @param ctx Contains SLH_DSA algorithm functions and constants.
- * @param fors_sig_rpkt A PACKET object to read a FORS signature from
+ * @param fors_sig_rpkt A CBS object to read a FORS signature from
  * @param md A message digest of size (k * a / 8) bytes
  * @param pk_seed A public key seed of size |n|
  * @param adrs The ADRS object must have a layer address of zero, and the
@@ -211,7 +211,7 @@ err:
  * @param pk_out_len The maximum size of |pk_out|
  * @returns 1 on success, or 0 on error.
  */
-int ossl_slh_fors_pk_from_sig(SLH_DSA_HASH_CTX *ctx, PACKET *fors_sig_rpkt,
+int ossl_slh_fors_pk_from_sig(SLH_DSA_HASH_CTX *ctx, CBS *fors_sig_rpkt,
     const uint8_t *md, const uint8_t *pk_seed,
     uint8_t *adrs, uint8_t *pk_out, size_t pk_out_len)
 {
@@ -224,7 +224,7 @@ int ossl_slh_fors_pk_from_sig(SLH_DSA_HASH_CTX *ctx, PACKET *fors_sig_rpkt,
     uint32_t k = params->k;
     uint32_t n = params->n;
     uint32_t two_power_a = (1 << a);
-    const uint8_t *sk, *authj; /* Pointers to |sig| buffer inside fors_sig_rpkt */
+    CBS sk, authj; /* Views into the |sig| buffer inside fors_sig_rpkt */
     uint8_t roots[SLH_MAX_ROOTS];
     size_t roots_len = 0; /* The size of |roots| */
     uint8_t *node0, *node1; /* Pointers into roots[] */
@@ -253,28 +253,28 @@ int ossl_slh_fors_pk_from_sig(SLH_DSA_HASH_CTX *ctx, PACKET *fors_sig_rpkt,
         set_tree_index(adrs, node_id);
 
         /* Regenerate the public key of the leaf */
-        if (!PACKET_get_bytes(fors_sig_rpkt, &sk, n)
+        if (!CBS_get_bytes(fors_sig_rpkt, &sk, n)
             || !WPACKET_allocate_bytes(wroot_pkt, n, &node0)
-            || !F(ctx, pk_seed, adrs, sk, n, node0, n))
+            || !F(ctx, pk_seed, adrs, CBS_data(&sk), n, node0, n))
             goto err;
 
         /* This omits the copying of the nodes that the FIPS 205 code does */
         node1 = node0;
         for (j = 0; j < a; ++j) {
             /* Get this layers other child public key */
-            if (!PACKET_get_bytes(fors_sig_rpkt, &authj, n))
+            if (!CBS_get_bytes(fors_sig_rpkt, &authj, n))
                 goto err;
             /* Hash the children together to get the parent nodes public key */
             set_tree_height(adrs, j + 1);
             if ((id & 1) == 0) {
                 node_id >>= 1;
                 set_tree_index(adrs, node_id);
-                if (!H(ctx, pk_seed, adrs, node0, authj, node1, n))
+                if (!H(ctx, pk_seed, adrs, node0, CBS_data(&authj), node1, n))
                     goto err;
             } else {
                 node_id = (node_id - 1) >> 1;
                 set_tree_index(adrs, node_id);
-                if (!H(ctx, pk_seed, adrs, authj, node0, node1, n))
+                if (!H(ctx, pk_seed, adrs, CBS_data(&authj), node0, node1, n))
                     goto err;
             }
             id >>= 1;
