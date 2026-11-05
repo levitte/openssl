@@ -20,7 +20,7 @@
 #pragma once
 #ifndef OPENSSL_NO_LMS
 #include "lms.h"
-#include "internal/packet.h"
+#include "internal/bytestring.h"
 
 /* The values defined for 8 byte TAGS */
 extern const uint16_t OSSL_LMS_D_PBLC; /* 8080 */
@@ -56,7 +56,7 @@ typedef struct lms_signature_st {
 
 LMS_SIG *ossl_lms_sig_new(void);
 void ossl_lms_sig_free(LMS_SIG *sig);
-LMS_SIG *ossl_lms_sig_from_pkt(PACKET *pkt, const LMS_KEY *pub);
+LMS_SIG *ossl_lms_sig_from_pkt(CBS *pkt, const LMS_KEY *pub);
 int ossl_lms_sig_decode(LMS_SIG **out, LMS_KEY *pub,
     const unsigned char *sig, size_t siglen);
 int ossl_lms_sig_verify(const LMS_SIG *lms_sig, const LMS_KEY *pub,

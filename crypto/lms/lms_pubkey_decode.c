@@ -8,6 +8,7 @@
  */
 
 #include <openssl/core_names.h>
+#include "internal/bytestring.h"
 #include "crypto/lms.h"
 #include "crypto/lms_util.h"
 
@@ -21,12 +22,12 @@
  */
 size_t ossl_lms_pubkey_length(const unsigned char *data, size_t datalen)
 {
-    PACKET pkt;
+    CBS pkt;
     uint32_t lms_type;
     const LMS_PARAMS *params;
 
-    if (!PACKET_buf_init(&pkt, data, datalen)
-        || !PACKET_get_net_4_len_u32(&pkt, &lms_type)
+    CBS_init(&pkt, data, datalen);
+    if (!CBS_get_u32(&pkt, &lms_type)
         || (params = ossl_lms_params_get(lms_type)) == NULL)
         return 0;
     return LMS_SIZE_LMS_TYPE + LMS_SIZE_OTS_TYPE + LMS_SIZE_I + params->n;
@@ -38,7 +39,7 @@ size_t ossl_lms_pubkey_length(const unsigned char *data, size_t datalen)
  * See RFC 8554 Algorithm 6: Steps 1 & 2.
  * The XDR format is lms_type[4] || ots_type[4] || I[16] || K[n]
  * Steps that involve checking the size of the public key data are
- * done indirectly by checking the return result of PACKET_get API's.
+ * done indirectly by checking the return result of CBS_get API's.
  * This function may be called multiple times.
  *
  * @param pkt The packet to read public key data in XDR format from.
@@ -51,16 +52,15 @@ static int lms_pubkey_from_pkt(LMS_KEY *lmskey, const unsigned char *pubkeydata,
     uint32_t lms_type;
     uint32_t ots_type;
     LMS_PUB_KEY *key = &lmskey->pub;
-    PACKET pkt;
+    CBS pkt, Id, K;
 
-    if (!PACKET_buf_init(&pkt, pubkeydata, publen))
-        goto err;
-    key->encoded = (unsigned char *)PACKET_data(&pkt);
-    if (!PACKET_get_net_4_len_u32(&pkt, &lms_type))
+    CBS_init(&pkt, pubkeydata, publen);
+    key->encoded = (unsigned char *)CBS_data(&pkt);
+    if (!CBS_get_u32(&pkt, &lms_type))
         goto err;
     lmskey->lms_params = ossl_lms_params_get(lms_type);
     if (lmskey->lms_params == NULL
-        || !PACKET_get_net_4_len_u32(&pkt, &ots_type))
+        || !CBS_get_u32(&pkt, &ots_type))
         goto err;
     lmskey->ots_params = ossl_lm_ots_params_get(ots_type);
     if (lmskey->ots_params == NULL)
@@ -68,13 +68,13 @@ static int lms_pubkey_from_pkt(LMS_KEY *lmskey, const unsigned char *pubkeydata,
 
     /* The digest used must be the same */
     if (HASH_NOT_MATCHED(lmskey->ots_params, lmskey->lms_params)
-        || !PACKET_get_bytes(&pkt, (const unsigned char **)&lmskey->Id,
-            LMS_SIZE_I)
-        || !PACKET_get_bytes(&pkt, (const unsigned char **)&key->K,
-            lmskey->lms_params->n))
+        || !CBS_get_bytes(&pkt, &Id, LMS_SIZE_I)
+        || !CBS_get_bytes(&pkt, &K, lmskey->lms_params->n))
         goto err;
-    key->encodedlen = (unsigned char *)PACKET_data(&pkt) - key->encoded;
-    return PACKET_remaining(&pkt) == 0;
+    lmskey->Id = (unsigned char *)CBS_data(&Id);
+    key->K = (unsigned char *)CBS_data(&K);
+    key->encodedlen = (unsigned char *)CBS_data(&pkt) - key->encoded;
+    return CBS_len(&pkt) == 0;
 err:
     return 0;
 }
