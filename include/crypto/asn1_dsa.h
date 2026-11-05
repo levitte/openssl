@@ -12,12 +12,13 @@
 #pragma once
 
 #include "internal/packet.h"
+#include "internal/bytestring.h"
 
 int ossl_encode_der_length(WPACKET *pkt, size_t cont_len);
 int ossl_encode_der_integer(WPACKET *pkt, const BIGNUM *n);
 int ossl_encode_der_dsa_sig(WPACKET *pkt, const BIGNUM *r, const BIGNUM *s);
-int ossl_decode_der_length(PACKET *pkt, PACKET *subpkt);
-int ossl_decode_der_integer(PACKET *pkt, BIGNUM *n);
+int ossl_decode_der_length(CBS *pkt, CBS *subpkt);
+int ossl_decode_der_integer(CBS *pkt, BIGNUM *n);
 size_t ossl_decode_der_dsa_sig(BIGNUM *r, BIGNUM *s, const unsigned char **ppin,
     size_t len);
 

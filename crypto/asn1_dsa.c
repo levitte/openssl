@@ -152,19 +152,19 @@ int ossl_encode_der_dsa_sig(WPACKET *pkt, const BIGNUM *r, const BIGNUM *s)
  *
  * Returns 1 on success or 0 on failure.
  */
-int ossl_decode_der_length(PACKET *pkt, PACKET *subpkt)
+int ossl_decode_der_length(CBS *pkt, CBS *subpkt)
 {
-    unsigned int byte;
+    uint8_t byte;
 
-    if (!PACKET_get_1(pkt, &byte))
+    if (!CBS_get_u8(pkt, &byte))
         return 0;
 
     if (byte < 0x80)
-        return PACKET_get_sub_packet(pkt, subpkt, (size_t)byte);
+        return CBS_get_bytes(pkt, subpkt, (size_t)byte);
     if (byte == 0x81)
-        return PACKET_get_length_prefixed_1(pkt, subpkt);
+        return CBS_get_u8_length_prefixed(pkt, subpkt);
     if (byte == 0x82)
-        return PACKET_get_length_prefixed_2(pkt, subpkt);
+        return CBS_get_u16_length_prefixed(pkt, subpkt);
 
     /* Too large, invalid, or not DER. */
     return 0;
@@ -180,17 +180,17 @@ int ossl_decode_der_length(PACKET *pkt, PACKET *subpkt)
  * An attempt to consume more than len bytes results in an error.
  * Returns 1 on success or 0 on error.
  *
- * If the PACKET is supposed to only contain a single INTEGER value with no
+ * If the CBS is supposed to only contain a single INTEGER value with no
  * trailing garbage then it is up to the caller to verify that all bytes
  * were consumed.
  */
-int ossl_decode_der_integer(PACKET *pkt, BIGNUM *n)
+int ossl_decode_der_integer(CBS *pkt, BIGNUM *n)
 {
-    PACKET contpkt, tmppkt;
-    unsigned int tag, tmp;
+    CBS contpkt, tmppkt;
+    uint8_t tag, tmp;
 
     /* Check we have an integer and get the content bytes */
-    if (!PACKET_get_1(pkt, &tag)
+    if (!CBS_get_u8(pkt, &tag)
         || tag != ID_INTEGER
         || !ossl_decode_der_length(pkt, &contpkt))
         return 0;
@@ -198,18 +198,18 @@ int ossl_decode_der_integer(PACKET *pkt, BIGNUM *n)
     /* Peek ahead at the first bytes to check for proper encoding */
     tmppkt = contpkt;
     /* The INTEGER must be positive */
-    if (!PACKET_get_1(&tmppkt, &tmp)
+    if (!CBS_get_u8(&tmppkt, &tmp)
         || (tmp & 0x80) != 0)
         return 0;
     /* If there a zero padding byte the next byte must have the msb set */
-    if (PACKET_remaining(&tmppkt) > 0 && tmp == 0) {
-        if (!PACKET_get_1(&tmppkt, &tmp)
+    if (CBS_len(&tmppkt) > 0 && tmp == 0) {
+        if (!CBS_get_u8(&tmppkt, &tmp)
             || (tmp & 0x80) == 0)
             return 0;
     }
 
-    if (BN_bin2bn(PACKET_data(&contpkt),
-            (int)PACKET_remaining(&contpkt), n)
+    if (BN_bin2bn(CBS_data(&contpkt),
+            (int)CBS_len(&contpkt), n)
         == NULL)
         return 0;
 
@@ -235,19 +235,19 @@ size_t ossl_decode_der_dsa_sig(BIGNUM *r, BIGNUM *s,
     const unsigned char **ppin, size_t len)
 {
     size_t consumed;
-    PACKET pkt, contpkt;
-    unsigned int tag;
+    CBS pkt, contpkt;
+    uint8_t tag;
 
-    if (!PACKET_buf_init(&pkt, *ppin, len)
-        || !PACKET_get_1(&pkt, &tag)
+    CBS_init(&pkt, *ppin, len);
+    if (!CBS_get_u8(&pkt, &tag)
         || tag != ID_SEQUENCE
         || !ossl_decode_der_length(&pkt, &contpkt)
         || !ossl_decode_der_integer(&contpkt, r)
         || !ossl_decode_der_integer(&contpkt, s)
-        || PACKET_remaining(&contpkt) != 0)
+        || CBS_len(&contpkt) != 0)
         return 0;
 
-    consumed = PACKET_data(&pkt) - *ppin;
+    consumed = CBS_data(&pkt) - *ppin;
     *ppin += consumed;
     return consumed;
 }
