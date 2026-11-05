@@ -82,18 +82,17 @@ static int pkt_split_dgram_recvmmsg(BIO *bio, BIO_MSG *msg, size_t stride,
 
     for (i = 0, thismsg = msg; i < msg_cnt; i++, thismsg++) {
         QUIC_PKT_HDR hdr;
-        PACKET pkt;
+        CBS pkt;
         size_t remain;
 
-        if (!PACKET_buf_init(&pkt, thismsg->data, thismsg->data_len))
-            return 0;
+        CBS_init(&pkt, thismsg->data, thismsg->data_len);
 
         /* Decode the packet header */
         if (ossl_quic_wire_decode_pkt_hdr(&pkt, bdata->short_conn_id_len,
                 0, 0, &hdr, NULL, NULL)
             != 1)
             return 0;
-        remain = PACKET_remaining(&pkt);
+        remain = CBS_len(&pkt);
         if (remain > 0) {
             for (j = msg_cnt; j > i; j--) {
                 if (!bio_msg_copy(&msg[j], &msg[j - 1]))

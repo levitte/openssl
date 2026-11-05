@@ -357,10 +357,10 @@ static int tx_helper_commit(struct tx_helper *h)
     if (h->txp->msg_callback != NULL && l > 0) {
         uint64_t ftype;
         int ctype = SSL3_RT_QUIC_FRAME_FULL;
-        PACKET pkt;
+        CBS pkt;
 
-        if (!PACKET_buf_init(&pkt, h->txn.data, l)
-            || !ossl_quic_wire_peek_frame_header(&pkt, &ftype, NULL)) {
+        CBS_init(&pkt, h->txn.data, l);
+        if (!ossl_quic_wire_peek_frame_header(&pkt, &ftype, NULL)) {
             tx_helper_end(h, 0);
             return 0;
         }

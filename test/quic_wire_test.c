@@ -8,6 +8,7 @@
  */
 
 #include "internal/packet.h"
+#include "internal/bytestring_quic.h"
 #include "internal/quic_wire.h"
 #include "internal/quic_wire_pkt.h"
 #include "testutil.h"
@@ -21,7 +22,7 @@ struct encode_test_case {
      * of bytes to which the input has been truncated (function should test that
      * decoding fails)
      */
-    int (*deserializer)(PACKET *pkt, ossl_ssize_t fail);
+    int (*deserializer)(CBS *pkt, ossl_ssize_t fail);
 };
 
 /* 1. PADDING */
@@ -33,7 +34,7 @@ static int encode_case_1_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_1_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_1_dec(CBS *pkt, ossl_ssize_t fail)
 {
     if (fail >= 0)
         /* No failure modes for padding */
@@ -59,7 +60,7 @@ static int encode_case_2_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_2_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_2_dec(CBS *pkt, ossl_ssize_t fail)
 {
 
     if (!TEST_int_eq(ossl_quic_wire_decode_frame_ping(pkt), fail < 0))
@@ -93,7 +94,7 @@ static int encode_case_3_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_3_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_3_dec(CBS *pkt, ossl_ssize_t fail)
 {
     OSSL_QUIC_ACK_RANGE ranges[4] = { 0 };
     OSSL_QUIC_FRAME_ACK f = { 0 };
@@ -184,7 +185,7 @@ static int encode_case_4_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_4_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_4_dec(CBS *pkt, ossl_ssize_t fail)
 {
     OSSL_QUIC_FRAME_RESET_STREAM f = { 0 };
 
@@ -229,7 +230,7 @@ static int encode_case_5_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_5_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_5_dec(CBS *pkt, ossl_ssize_t fail)
 {
     OSSL_QUIC_FRAME_STOP_SENDING f = { 0 };
 
@@ -269,7 +270,7 @@ static int encode_case_6_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_6_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_6_dec(CBS *pkt, ossl_ssize_t fail)
 {
     OSSL_QUIC_FRAME_CRYPTO f = { 0 };
 
@@ -316,7 +317,7 @@ static int encode_case_7_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_7_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_7_dec(CBS *pkt, ossl_ssize_t fail)
 {
     const unsigned char *token = NULL;
     size_t token_len = 0;
@@ -361,7 +362,7 @@ static int encode_case_8_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_8_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_8_dec(CBS *pkt, ossl_ssize_t fail)
 {
     OSSL_QUIC_FRAME_STREAM f = { 0 };
 
@@ -423,7 +424,7 @@ static int encode_case_9_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_9_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_9_dec(CBS *pkt, ossl_ssize_t fail)
 {
     OSSL_QUIC_FRAME_STREAM f = { 0 };
 
@@ -472,7 +473,7 @@ static int encode_case_10_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_10_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_10_dec(CBS *pkt, ossl_ssize_t fail)
 {
     uint64_t max_data = 0;
 
@@ -506,7 +507,7 @@ static int encode_case_11_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_11_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_11_dec(CBS *pkt, ossl_ssize_t fail)
 {
     uint64_t stream_id = 0, max_data = 0;
 
@@ -550,7 +551,7 @@ static int encode_case_12_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_12_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_12_dec(CBS *pkt, ossl_ssize_t fail)
 {
     uint64_t max_streams_1 = 0, max_streams_2 = 0,
              frame_type_1 = 0, frame_type_2 = 0;
@@ -625,7 +626,7 @@ static int encode_case_13_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_13_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_13_dec(CBS *pkt, ossl_ssize_t fail)
 {
     uint64_t max_data = 0;
 
@@ -661,7 +662,7 @@ static int encode_case_14_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_14_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_14_dec(CBS *pkt, ossl_ssize_t fail)
 {
     uint64_t stream_id = 0, max_data = 0;
 
@@ -705,7 +706,7 @@ static int encode_case_15_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_15_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_15_dec(CBS *pkt, ossl_ssize_t fail)
 {
     uint64_t max_streams_1 = 0, max_streams_2 = 0,
              frame_type_1 = 0, frame_type_2 = 0;
@@ -794,7 +795,7 @@ static int encode_case_16_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_16_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_16_dec(CBS *pkt, ossl_ssize_t fail)
 {
     OSSL_QUIC_FRAME_NEW_CONN_ID f = { 0 };
 
@@ -856,14 +857,14 @@ static int encode_case_16b_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_16b_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_16b_dec(CBS *pkt, ossl_ssize_t fail)
 {
     OSSL_QUIC_FRAME_NEW_CONN_ID f = { 0 };
 
     if (!TEST_int_eq(ossl_quic_wire_decode_frame_new_conn_id(pkt, &f), 0))
         return 0;
 
-    if (!TEST_true(PACKET_forward(pkt, PACKET_remaining(pkt))))
+    if (!TEST_true(CBS_skip(pkt, CBS_len(pkt))))
         return 0;
 
     return 1;
@@ -888,7 +889,7 @@ static int encode_case_17_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_17_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_17_dec(CBS *pkt, ossl_ssize_t fail)
 {
     uint64_t seq_num = 0;
 
@@ -924,7 +925,7 @@ static int encode_case_18_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_18_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_18_dec(CBS *pkt, ossl_ssize_t fail)
 {
     uint64_t challenge = 0;
 
@@ -966,7 +967,7 @@ static int encode_case_19_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_19_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_19_dec(CBS *pkt, ossl_ssize_t fail)
 {
     uint64_t challenge = 0;
 
@@ -1019,7 +1020,7 @@ static int encode_case_20_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_20_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_20_dec(CBS *pkt, ossl_ssize_t fail)
 {
     OSSL_QUIC_FRAME_CONN_CLOSE f = { 0 };
 
@@ -1067,7 +1068,7 @@ static int encode_case_21_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_21_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_21_dec(CBS *pkt, ossl_ssize_t fail)
 {
 
     if (!TEST_int_eq(ossl_quic_wire_decode_frame_handshake_done(pkt), fail < 0))
@@ -1102,7 +1103,7 @@ static int encode_case_22_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_22_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_22_dec(CBS *pkt, ossl_ssize_t fail)
 {
     uint64_t id = 0;
     size_t len = 0;
@@ -1189,7 +1190,7 @@ static int encode_case_23_enc(WPACKET *pkt)
     return 1;
 }
 
-static int encode_case_23_dec(PACKET *pkt, ossl_ssize_t fail)
+static int encode_case_23_dec(CBS *pkt, ossl_ssize_t fail)
 {
     uint64_t id = 0, value = 0;
 
@@ -1279,7 +1280,7 @@ static int test_wire_encode(int idx)
 {
     int testresult = 0;
     WPACKET wpkt;
-    PACKET pkt;
+    CBS pkt;
     BUF_MEM *buf = NULL;
     size_t written;
     const struct encode_test_case *c = &encode_cases[idx];
@@ -1302,17 +1303,16 @@ static int test_wire_encode(int idx)
     if (!TEST_mem_eq(buf->data, written, c->expect_buf, c->expect_buf_len))
         goto err;
 
-    if (!TEST_int_eq(PACKET_buf_init(&pkt, (unsigned char *)buf->data, written), 1))
-        goto err;
+    CBS_init(&pkt, (unsigned char *)buf->data, written);
 
     if (!TEST_int_eq(c->deserializer(&pkt, -1), 1))
         goto err;
 
-    if (!TEST_false(PACKET_remaining(&pkt)))
+    if (!TEST_false(CBS_len(&pkt)))
         goto err;
 
     for (i = 0; i < c->expect_buf_len; ++i) {
-        PACKET pkt2;
+        CBS pkt2;
 
         /*
          * Check parsing truncated (i.e., malformed) input is handled correctly.
@@ -1321,8 +1321,7 @@ static int test_wire_encode(int idx)
          * truncated encoding is passed as an argument to the deserializer to
          * help it determine whether decoding should fail or not.
          */
-        if (!TEST_int_eq(PACKET_buf_init(&pkt2, c->expect_buf, i), 1))
-            goto err;
+        CBS_init(&pkt2, c->expect_buf, i);
 
         if (!TEST_int_eq(c->deserializer(&pkt2, i), 1))
             goto err;
@@ -1339,7 +1338,7 @@ err:
 struct ack_test_case {
     const unsigned char *input_buf;
     size_t input_buf_len;
-    int (*deserializer)(PACKET *pkt);
+    int (*deserializer)(CBS *pkt);
     int expect_fail;
 };
 
@@ -1427,7 +1426,7 @@ static const unsigned char ack_case_7_input[] = {
     0x00, /* ACK Range Length */
 };
 
-static int ack_generic_decode(PACKET *pkt)
+static int ack_generic_decode(CBS *pkt)
 {
     OSSL_QUIC_ACK_RANGE ranges[8] = { 0 };
     OSSL_QUIC_FRAME_ACK f = { 0 };
@@ -1481,14 +1480,10 @@ static const struct ack_test_case ack_cases[] = {
 static int test_wire_ack(int idx)
 {
     int testresult = 0, r;
-    PACKET pkt;
+    CBS pkt;
     const struct ack_test_case *c = &ack_cases[idx];
 
-    if (!TEST_int_eq(PACKET_buf_init(&pkt,
-                         c->input_buf,
-                         c->input_buf_len),
-            1))
-        goto err;
+    CBS_init(&pkt, c->input_buf, c->input_buf_len);
 
     r = c->deserializer(&pkt);
     if (c->expect_fail) {
@@ -1498,7 +1493,7 @@ static int test_wire_ack(int idx)
         if (!TEST_int_eq(r, 1))
             goto err;
 
-        if (!TEST_false(PACKET_remaining(&pkt)))
+        if (!TEST_false(CBS_len(&pkt)))
             goto err;
     }
 
@@ -1590,12 +1585,11 @@ static const unsigned char retry_encoded[] = {
 static int test_wire_retry_integrity_tag(void)
 {
     int testresult = 0;
-    PACKET pkt = { 0 };
+    CBS pkt = { 0 };
     QUIC_PKT_HDR hdr = { 0 };
     unsigned char got_tag[QUIC_RETRY_INTEGRITY_TAG_LEN] = { 0 };
 
-    if (!TEST_true(PACKET_buf_init(&pkt, retry_encoded, sizeof(retry_encoded))))
-        goto err;
+    CBS_init(&pkt, retry_encoded, sizeof(retry_encoded));
 
     if (!TEST_true(ossl_quic_wire_decode_pkt_hdr(&pkt, 0, 0, 0, &hdr, NULL, NULL)))
         goto err;
@@ -1671,11 +1665,9 @@ static int test_wire_minimal(int idx)
     int testresult = 0;
     int is_minimal;
     uint64_t frame_type;
-    PACKET pkt;
+    CBS pkt;
 
-    if (!TEST_true(PACKET_buf_init(&pkt, non_minimal[idx],
-            non_minimal_len[idx])))
-        goto err;
+    CBS_init(&pkt, non_minimal[idx], non_minimal_len[idx]);
 
     if (!TEST_true(ossl_quic_wire_peek_frame_header(&pkt, &frame_type,
             &is_minimal)))

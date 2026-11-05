@@ -2933,7 +2933,7 @@ static int test_wire_pkt_hdr_actual(int tidx, int repeat, int cipher,
     const struct pkt_hdr_test *t = pkt_hdr_tests[tidx];
     QUIC_PKT_HDR hdr = { 0 };
     QUIC_PKT_HDR_PTRS ptrs = { 0 }, wptrs = { 0 };
-    PACKET pkt = { 0 };
+    CBS pkt = { 0 };
     WPACKET wpkt = { 0 };
     unsigned char *buf = NULL;
     size_t l = 0, i, j;
@@ -2983,8 +2983,7 @@ static int test_wire_pkt_hdr_actual(int tidx, int repeat, int cipher,
     if (!TEST_true(WPACKET_init_static_len(&wpkt, buf, TEST_PKT_BUF_LEN, 0)))
         goto err;
 
-    if (!TEST_true(PACKET_buf_init(&pkt, t->expected, trunc_len)))
-        goto err;
+    CBS_init(&pkt, t->expected, trunc_len);
 
     if (!TEST_int_eq(ossl_quic_wire_decode_pkt_hdr(&pkt, t->short_conn_id_len,
                          0, 0, &hdr, &ptrs, NULL),

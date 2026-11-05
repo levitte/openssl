@@ -182,7 +182,7 @@ int ossl_quic_hdr_protector_encrypt_fields(QUIC_HDR_PROTECTOR *hpr,
     return 1;
 }
 
-int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
+int ossl_quic_wire_decode_pkt_hdr(CBS *pkt,
     size_t short_conn_id_len,
     int partial,
     int nodata,
@@ -190,22 +190,22 @@ int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
     QUIC_PKT_HDR_PTRS *ptrs,
     uint64_t *fail_cause)
 {
-    unsigned int b0;
+    uint8_t b0;
     unsigned char *pn = NULL;
-    size_t l = PACKET_remaining(pkt);
+    size_t l = CBS_len(pkt);
 
     if (fail_cause != NULL)
         *fail_cause = QUIC_PKT_HDR_DECODE_DECODE_ERR;
 
     if (ptrs != NULL) {
-        ptrs->raw_start = (unsigned char *)PACKET_data(pkt);
+        ptrs->raw_start = (unsigned char *)CBS_data(pkt);
         ptrs->raw_sample = NULL;
         ptrs->raw_sample_len = 0;
         ptrs->raw_pn = NULL;
     }
 
     if (l < QUIC_MIN_VALID_PKT_LEN
-        || !PACKET_get_1(pkt, &b0))
+        || !CBS_get_u8(pkt, &b0))
         return 0;
 
     hdr->partial = partial;
@@ -235,7 +235,7 @@ int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
         }
 
         /* Copy destination connection ID field to header structure. */
-        if (!PACKET_copy_bytes(pkt, hdr->dst_conn_id.id, short_conn_id_len))
+        if (!CBS_copy_bytes(pkt, hdr->dst_conn_id.id, short_conn_id_len))
             return 0;
 
         hdr->dst_conn_id.id_len = (unsigned char)short_conn_id_len;
@@ -247,12 +247,12 @@ int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
          * this stage.
          */
         memset(hdr->pn, 0, sizeof(hdr->pn));
-        pn = (unsigned char *)PACKET_data(pkt);
+        pn = (unsigned char *)CBS_data(pkt);
         if (partial) {
-            if (!PACKET_forward(pkt, sizeof(hdr->pn)))
+            if (!CBS_skip(pkt, sizeof(hdr->pn)))
                 return 0;
         } else {
-            if (!PACKET_copy_bytes(pkt, hdr->pn, hdr->pn_len))
+            if (!CBS_copy_bytes(pkt, hdr->pn, hdr->pn_len))
                 return 0;
         }
 
@@ -266,22 +266,23 @@ int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
          * Short-header packets always come last in a datagram, the length
          * is the remainder of the buffer.
          */
-        hdr->len = PACKET_remaining(pkt);
-        hdr->data = PACKET_data(pkt);
+        hdr->len = CBS_len(pkt);
+        hdr->data = CBS_data(pkt);
 
         /*
          * Skip over payload. Since this is a short header packet, which cannot
          * be followed by any other kind of packet, this advances us to the end
          * of the datagram.
          */
-        if (!PACKET_forward(pkt, hdr->len))
+        if (!CBS_skip(pkt, hdr->len))
             return 0;
     } else {
         /* Long header. */
-        unsigned long version;
-        unsigned int dst_conn_id_len, src_conn_id_len, raw_type;
+        uint32_t version;
+        uint8_t dst_conn_id_len, src_conn_id_len;
+        unsigned int raw_type;
 
-        if (!PACKET_get_net_4(pkt, &version))
+        if (!CBS_get_u32(pkt, &version))
             return 0;
 
         /*
@@ -291,12 +292,12 @@ int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
         if (version != 0 && (b0 & 0x40) == 0)
             return 0;
 
-        if (!PACKET_get_1(pkt, &dst_conn_id_len)
+        if (!CBS_get_u8(pkt, &dst_conn_id_len)
             || dst_conn_id_len > QUIC_MAX_CONN_ID_LEN
-            || !PACKET_copy_bytes(pkt, hdr->dst_conn_id.id, dst_conn_id_len)
-            || !PACKET_get_1(pkt, &src_conn_id_len)
+            || !CBS_copy_bytes(pkt, hdr->dst_conn_id.id, dst_conn_id_len)
+            || !CBS_get_u8(pkt, &src_conn_id_len)
             || src_conn_id_len > QUIC_MAX_CONN_ID_LEN
-            || !PACKET_copy_bytes(pkt, hdr->src_conn_id.id, src_conn_id_len))
+            || !CBS_copy_bytes(pkt, hdr->src_conn_id.id, src_conn_id_len))
             return 0;
 
         hdr->version = (uint32_t)version;
@@ -312,8 +313,8 @@ int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
             hdr->type = QUIC_PKT_TYPE_VERSION_NEG;
             hdr->fixed = (b0 & 0x40) != 0;
 
-            hdr->data = PACKET_data(pkt);
-            hdr->len = PACKET_remaining(pkt);
+            hdr->data = CBS_data(pkt);
+            hdr->len = CBS_len(pkt);
 
             /*
              * Version negotiation packets must contain an array of u32s, so it
@@ -333,7 +334,7 @@ int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
             hdr->token_len = 0;
             memset(hdr->pn, 0, sizeof(hdr->pn));
 
-            if (!PACKET_forward(pkt, hdr->len))
+            if (!CBS_skip(pkt, hdr->len))
                 return 0;
         } else if (version != QUIC_VERSION_1) {
             if (fail_cause != NULL)
@@ -372,12 +373,14 @@ int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
             if (hdr->type == QUIC_PKT_TYPE_INITIAL) {
                 /* Initial packet. */
                 uint64_t token_len;
+                CBS token;
 
-                if (!PACKET_get_quic_vlint(pkt, &token_len)
+                if (!CBS_get_quic_vlint(pkt, &token_len)
                     || token_len > SIZE_MAX
-                    || !PACKET_get_bytes(pkt, &hdr->token, (size_t)token_len))
+                    || !CBS_get_bytes(pkt, &token, (size_t)token_len))
                     return 0;
 
+                hdr->token = CBS_data(&token);
                 hdr->token_len = (size_t)token_len;
                 if (token_len == 0)
                     hdr->token = NULL;
@@ -388,8 +391,8 @@ int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
 
             if (hdr->type == QUIC_PKT_TYPE_RETRY) {
                 /* Retry packet. */
-                hdr->data = PACKET_data(pkt);
-                hdr->len = PACKET_remaining(pkt);
+                hdr->data = CBS_data(pkt);
+                hdr->len = CBS_len(pkt);
 
                 /* Retry packets are always fully decoded. */
                 hdr->partial = 0;
@@ -400,7 +403,7 @@ int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
                 /* Fields not used in Retry packets. */
                 memset(hdr->pn, 0, sizeof(hdr->pn));
 
-                if (!PACKET_forward(pkt, hdr->len))
+                if (!CBS_skip(pkt, hdr->len))
                     return 0;
             } else {
                 /* Initial, 0-RTT or Handshake packet. */
@@ -409,11 +412,11 @@ int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
                 hdr->pn_len = partial ? 0 : ((b0 & 0x03) + 1);
                 hdr->reserved = partial ? 0 : ((b0 & 0x0C) >> 2);
 
-                if (!PACKET_get_quic_vlint(pkt, &len)
+                if (!CBS_get_quic_vlint(pkt, &len)
                     || len < sizeof(hdr->pn))
                     return 0;
 
-                if (!nodata && len > PACKET_remaining(pkt))
+                if (!nodata && len > CBS_len(pkt))
                     return 0;
 
                 /*
@@ -422,15 +425,15 @@ int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
                  * know the length of the PN but we are allowed to assume it is
                  * 4 bytes long at this stage.
                  */
-                pn = (unsigned char *)PACKET_data(pkt);
+                pn = (unsigned char *)CBS_data(pkt);
                 memset(hdr->pn, 0, sizeof(hdr->pn));
                 if (partial) {
-                    if (!PACKET_forward(pkt, sizeof(hdr->pn)))
+                    if (!CBS_skip(pkt, sizeof(hdr->pn)))
                         return 0;
 
                     hdr->len = (size_t)(len - sizeof(hdr->pn));
                 } else {
-                    if (!PACKET_copy_bytes(pkt, hdr->pn, hdr->pn_len))
+                    if (!CBS_copy_bytes(pkt, hdr->pn, hdr->pn_len))
                         return 0;
 
                     hdr->len = (size_t)(len - hdr->pn_len);
@@ -439,10 +442,10 @@ int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
                 if (nodata) {
                     hdr->data = NULL;
                 } else {
-                    hdr->data = PACKET_data(pkt);
+                    hdr->data = CBS_data(pkt);
 
                     /* Skip over packet body. */
-                    if (!PACKET_forward(pkt, hdr->len))
+                    if (!CBS_skip(pkt, hdr->len))
                         return 0;
                 }
             }
@@ -453,7 +456,8 @@ int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
         ptrs->raw_pn = pn;
         if (pn != NULL) {
             ptrs->raw_sample = pn + 4;
-            ptrs->raw_sample_len = PACKET_end(pkt) - ptrs->raw_sample;
+            ptrs->raw_sample_len
+                = CBS_data(pkt) + CBS_len(pkt) - ptrs->raw_sample;
         }
     }
 

@@ -11,7 +11,7 @@
 
 #include "internal/qlog_event_helpers.h"
 #include "internal/common.h"
-#include "internal/packet.h"
+#include "internal/bytestring.h"
 #include "internal/quic_channel.h"
 #include "internal/quic_error.h"
 
@@ -205,7 +205,7 @@ static void ignore_res(int x) { }
  * goes wrong before then) while avoiding the need to keep around bookkeeping
  * data on what frames it contained.
  */
-static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
+static int log_frame_actual(QLOG *qlog_instance, CBS *pkt,
     size_t *need_skip)
 {
     uint64_t frame_type;
@@ -213,7 +213,7 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
     OSSL_QUIC_ACK_RANGE ack_ranges[MAX_ACK_RANGES];
     uint64_t num_ranges, total_ranges;
     size_t i;
-    PACKET orig_pkt = *pkt;
+    CBS orig_pkt = *pkt;
 
     if (!ossl_quic_wire_peek_frame_header(pkt, &frame_type, NULL)) {
         *need_skip = SIZE_MAX;
@@ -475,27 +475,27 @@ static int log_frame_actual(QLOG *qlog_instance, PACKET *pkt,
          * as the raw data of the frame.
          */
         QLOG_BEGIN("raw");
-        QLOG_BIN("data", PACKET_data(&orig_pkt),
-            PACKET_remaining(&orig_pkt));
+        QLOG_BIN("data", CBS_data(&orig_pkt),
+            CBS_len(&orig_pkt));
         QLOG_END();
-        ignore_res(PACKET_forward(pkt, PACKET_remaining(pkt)));
+        ignore_res(CBS_skip(pkt, CBS_len(pkt)));
         break;
     }
 
     return 1;
 }
 
-static void log_frame(QLOG *qlog_instance, PACKET *pkt,
+static void log_frame(QLOG *qlog_instance, CBS *pkt,
     size_t *need_skip)
 {
     size_t rem_before, rem_after;
 
-    rem_before = PACKET_remaining(pkt);
+    rem_before = CBS_len(pkt);
 
     if (!log_frame_actual(qlog_instance, pkt, need_skip))
         return;
 
-    rem_after = PACKET_remaining(pkt);
+    rem_after = CBS_len(pkt);
     QLOG_U64("length", rem_before - rem_after);
 }
 
@@ -504,21 +504,20 @@ static int log_frames(QLOG *qlog_instance,
     size_t num_iovec)
 {
     size_t i;
-    PACKET pkt;
+    CBS pkt;
     size_t need_skip = 0;
 
     for (i = 0; i < num_iovec; ++i) {
-        if (!PACKET_buf_init(&pkt, iovec[i].buf, iovec[i].buf_len))
-            return 0;
+        CBS_init(&pkt, iovec[i].buf, iovec[i].buf_len);
 
-        while (PACKET_remaining(&pkt) > 0) {
+        while (CBS_len(&pkt) > 0) {
             if (need_skip > 0) {
                 size_t adv = need_skip;
 
-                if (adv > PACKET_remaining(&pkt))
-                    adv = PACKET_remaining(&pkt);
+                if (adv > CBS_len(&pkt))
+                    adv = CBS_len(&pkt);
 
-                if (!PACKET_forward(&pkt, adv))
+                if (!CBS_skip(&pkt, adv))
                     return 0;
 
                 need_skip -= adv;

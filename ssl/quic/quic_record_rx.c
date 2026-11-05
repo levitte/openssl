@@ -276,7 +276,7 @@ static int qrx_validate_initial_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
     const QUIC_CONN_ID *first_dcid,
     size_t datagram_len)
 {
-    PACKET pkt, orig_pkt;
+    CBS pkt, orig_pkt;
     RXE *rxe;
     size_t i = 0, aad_len = 0, dec_len = 0;
     const unsigned char *sop;
@@ -286,17 +286,16 @@ static int qrx_validate_initial_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
     OSSL_QRL_ENC_LEVEL *el = NULL;
     uint64_t rx_key_epoch = UINT64_MAX;
 
-    if (!PACKET_buf_init(&pkt, ossl_quic_urxe_data(urxe), urxe->data_len))
-        return 0;
+    CBS_init(&pkt, ossl_quic_urxe_data(urxe), urxe->data_len);
 
     orig_pkt = pkt;
-    sop = PACKET_data(&pkt);
+    sop = CBS_data(&pkt);
 
     /*
      * Get a free RXE. If we need to allocate a new one, use the packet length
      * as a good ballpark figure.
      */
-    rxe = qrx_ensure_free_rxe(qrx, PACKET_remaining(&pkt));
+    rxe = qrx_ensure_free_rxe(qrx, CBS_len(&pkt));
     if (rxe == NULL)
         return 0;
 
@@ -362,7 +361,7 @@ static int qrx_validate_initial_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
     /*
      * The AAD data is the entire (unprotected) packet header including the PN.
      * The packet header has been unprotected in place, so we can just reuse the
-     * PACKET buffer. The header ends where the payload begins.
+     * CBS buffer. The header ends where the payload begins.
      */
     aad_len = rxe->hdr.data - sop;
 
@@ -374,7 +373,7 @@ static int qrx_validate_initial_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
      * We decrypt the packet body to immediately after the token at the start of
      * the RXE buffer (where present).
      *
-     * Do the decryption from the PACKET (which points into URXE memory) to our
+     * Do the decryption from the CBS (which points into URXE memory) to our
      * RXE payload (single-copy decryption), then fixup the pointers in the
      * header to point to our new buffer.
      *
@@ -979,15 +978,15 @@ static void qrx_key_update_initiated(OSSL_QRX *qrx, QUIC_PN pn)
 
 /* Process a single packet in a datagram. */
 static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
-    PACKET *pkt, size_t pkt_idx,
+    CBS *pkt, size_t pkt_idx,
     QUIC_CONN_ID *first_dcid,
     size_t datagram_len)
 {
     RXE *rxe;
     const unsigned char *eop = NULL;
     size_t i, aad_len = 0, dec_len = 0;
-    PACKET orig_pkt = *pkt;
-    const unsigned char *sop = PACKET_data(pkt);
+    CBS orig_pkt = *pkt;
+    const unsigned char *sop = CBS_data(pkt);
     unsigned char *dst;
     char need_second_decode = 0, already_processed = 0;
     QUIC_PKT_HDR_PTRS ptrs;
@@ -1000,7 +999,7 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
      * Get a free RXE. If we need to allocate a new one, use the packet length
      * as a good ballpark figure.
      */
-    rxe = qrx_ensure_free_rxe(qrx, PACKET_remaining(pkt));
+    rxe = qrx_ensure_free_rxe(qrx, CBS_len(pkt));
     if (rxe == NULL)
         /*
          * Allocation failure, treat as malformed as we cannot process this
@@ -1028,9 +1027,9 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
 
     /*
      * Our successful decode above included an intelligible length and the
-     * PACKET is now pointing to the end of the QUIC packet.
+     * CBS is now pointing to the end of the QUIC packet.
      */
-    eop = PACKET_data(pkt);
+    eop = CBS_data(pkt);
 
     /*
      * Make a note of the first packet's DCID so we can later ensure the
@@ -1120,7 +1119,7 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
 
     /*
      * rxe->hdr.data is now pointing at the (encrypted) packet payload. rxe->hdr
-     * also has fields pointing into the PACKET buffer which will be going away
+     * also has fields pointing into the CBS buffer which will be going away
      * soon (the URXE will be reused for another incoming packet).
      *
      * Firstly, relocate some of these fields into the RXE as needed.
@@ -1182,7 +1181,7 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
     /*
      * The AAD data is the entire (unprotected) packet header including the PN.
      * The packet header has been unprotected in place, so we can just reuse the
-     * PACKET buffer. The header ends where the payload begins.
+     * CBS buffer. The header ends where the payload begins.
      */
     aad_len = rxe->hdr.data - sop;
 
@@ -1201,7 +1200,7 @@ static int qrx_process_pkt(OSSL_QRX *qrx, QUIC_URXE *urxe,
      * We decrypt the packet body to immediately after the token at the start of
      * the RXE buffer (where present).
      *
-     * Do the decryption from the PACKET (which points into URXE memory) to our
+     * Do the decryption from the CBS (which points into URXE memory) to our
      * RXE payload (single-copy decryption), then fixup the pointers in the
      * header to point to our new buffer.
      *
@@ -1284,12 +1283,12 @@ cannot_decrypt:
      * MUST attempt to process any other packets in the datagram, so defer it
      * and skip over it.
      */
-    assert(eop != NULL && eop >= PACKET_data(pkt));
+    assert(eop != NULL && eop >= CBS_data(pkt));
     /*
      * We don't care if this fails as it will just result in the packet being at
      * the end of the datagram buffer.
      */
-    ignore_res(PACKET_forward(pkt, eop - PACKET_data(pkt)));
+    ignore_res(CBS_skip(pkt, eop - CBS_data(pkt)));
     return 1; /* deferred */
 
 malformed:
@@ -1302,10 +1301,10 @@ malformed:
          *
          * Mark as processed as an optimization.
          */
-        assert(eop >= PACKET_data(pkt));
+        assert(eop >= CBS_data(pkt));
         pkt_mark(&urxe->processed, pkt_idx);
         /* We don't care if this fails (see above) */
-        ignore_res(PACKET_forward(pkt, eop - PACKET_data(pkt)));
+        ignore_res(CBS_skip(pkt, eop - CBS_data(pkt)));
     } else {
         /*
          * This packet cannot be processed and will never be processable.
@@ -1318,7 +1317,7 @@ malformed:
          */
         pkt_mark(&urxe->processed, pkt_idx);
         /* We don't care if this fails (see above) */
-        ignore_res(PACKET_forward(pkt, PACKET_remaining(pkt)));
+        ignore_res(CBS_skip(pkt, CBS_len(pkt)));
     }
     return 0; /* failure, did not defer; not distinguished from success */
 }
@@ -1329,22 +1328,21 @@ static int qrx_process_datagram(OSSL_QRX *qrx, QUIC_URXE *e,
     size_t data_len)
 {
     int have_deferred = 0;
-    PACKET pkt;
+    CBS pkt;
     size_t pkt_idx = 0;
     QUIC_CONN_ID first_dcid = { 255 };
 
     qrx->bytes_received += data_len;
 
-    if (!PACKET_buf_init(&pkt, data, data_len))
-        return 0;
+    CBS_init(&pkt, data, data_len);
 
-    for (; PACKET_remaining(&pkt) > 0; ++pkt_idx) {
+    for (; CBS_len(&pkt) > 0; ++pkt_idx) {
         /*
          * A packet smaller than the minimum possible QUIC packet size is not
          * considered valid. We also ignore more than a certain number of
          * packets within the same datagram.
          */
-        if (PACKET_remaining(&pkt) < QUIC_MIN_VALID_PKT_LEN
+        if (CBS_len(&pkt) < QUIC_MIN_VALID_PKT_LEN
             || pkt_idx >= QUIC_MAX_PKT_PER_URXE)
             break;
 

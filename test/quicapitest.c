@@ -2227,7 +2227,7 @@ static int tparam_on_enc_ext(QTEST_FAULT *qtf, QTEST_ENCRYPTED_EXTENSIONS *ee,
 {
     int rc = 0;
     struct tparam_ctx *ctx = arg;
-    PACKET pkt = { 0 };
+    CBS pkt = { 0 };
     WPACKET wpkt;
     int have_wpkt = 0;
     BUF_MEM *old_bufm = NULL, *new_bufm = NULL;
@@ -2247,8 +2247,8 @@ static int tparam_on_enc_ext(QTEST_FAULT *qtf, QTEST_ENCRYPTED_EXTENSIONS *ee,
             old_bufm)))
         goto err;
 
-    if (!TEST_true(PACKET_buf_init(&pkt, (unsigned char *)old_bufm->data, old_bufm->length))
-        || !TEST_ptr(new_bufm = BUF_MEM_new())
+    CBS_init(&pkt, (unsigned char *)old_bufm->data, old_bufm->length);
+    if (!TEST_ptr(new_bufm = BUF_MEM_new())
         || !TEST_true(WPACKET_init(&wpkt, new_bufm)))
         goto err;
 
@@ -2267,12 +2267,12 @@ static int tparam_on_enc_ext(QTEST_FAULT *qtf, QTEST_ENCRYPTED_EXTENSIONS *ee,
         || !TEST_true(WPACKET_start_sub_packet_u16(&wpkt)))
         goto err;
 
-    for (; PACKET_remaining(&pkt) > 0;) {
+    for (; CBS_len(&pkt) > 0;) {
         tp_p = (unsigned char *)ossl_quic_wire_decode_transport_param_bytes(&pkt,
             &id,
             &tp_len);
         if (!TEST_ptr(tp_p)) {
-            TEST_mem_eq(PACKET_data(&pkt), PACKET_remaining(&pkt), NULL, 0);
+            TEST_mem_eq(CBS_data(&pkt), CBS_len(&pkt), NULL, 0);
             goto err;
         }
 
@@ -3853,7 +3853,7 @@ static int test_quic_retry_token_refused(void)
     QUIC_CHANNEL *cch = NULL;
     QUIC_PKT_HDR rhdr = { 0 };
     QUIC_CONN_ID bad_dcid;
-    PACKET pkt;
+    CBS pkt;
     BIO_MSG msg = { 0 };
     BIO_ADDR *server_addr = NULL, *client_addr = NULL;
     BIO_ADDR *shadow_server_addr = NULL;
@@ -3925,9 +3925,10 @@ static int test_quic_retry_token_refused(void)
     msg.data_len = sizeof(retry);
     if (!TEST_true(BIO_recvmmsg(SSL_get_rbio(client), &msg, sizeof(msg), 1, 0,
             &num_processed))
-        || !TEST_size_t_eq(num_processed, 1)
-        || !TEST_true(PACKET_buf_init(&pkt, retry, msg.data_len))
-        || !TEST_true(ossl_quic_wire_decode_pkt_hdr(&pkt, 0, 0, 0, &rhdr,
+        || !TEST_size_t_eq(num_processed, 1))
+        goto err;
+    CBS_init(&pkt, retry, msg.data_len);
+    if (!TEST_true(ossl_quic_wire_decode_pkt_hdr(&pkt, 0, 0, 0, &rhdr,
             NULL, NULL))
         || !TEST_int_eq(rhdr.type, QUIC_PKT_TYPE_RETRY)
         || !TEST_size_t_gt(rhdr.len, QUIC_RETRY_INTEGRITY_TAG_LEN))

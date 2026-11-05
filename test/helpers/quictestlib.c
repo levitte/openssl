@@ -22,6 +22,7 @@
 #include "internal/quic_record_tx.h"
 #include "internal/quic_error.h"
 #include "internal/packet.h"
+#include "internal/bytestring_quic.h"
 #include "internal/tsan_assist.h"
 
 #define GROWTH_ALLOWANCE 1024
@@ -100,11 +101,10 @@ static void noise_msg_callback(int write_p, int version, int content_type,
     struct noise_args_data_st *noiseargs = (struct noise_args_data_st *)arg;
 
     if (content_type == SSL3_RT_QUIC_FRAME_FULL) {
-        PACKET pkt;
+        CBS pkt;
         uint64_t frame_type;
 
-        if (!PACKET_buf_init(&pkt, buf, len))
-            return;
+        CBS_init(&pkt, buf, len);
 
         if (!ossl_quic_wire_peek_frame_header(&pkt, &frame_type, NULL))
             return;
@@ -949,9 +949,9 @@ static int handshake_mutate(const unsigned char *msgin, size_t msginlen,
 {
     QTEST_FAULT *fault = arg;
     unsigned char *buf;
-    unsigned long payloadlen;
-    unsigned int msgtype;
-    PACKET pkt;
+    uint32_t payloadlen;
+    uint8_t msgtype;
+    CBS pkt;
 
     buf = OPENSSL_malloc(msginlen + GROWTH_ALLOWANCE);
     if (buf == NULL)
@@ -962,10 +962,10 @@ static int handshake_mutate(const unsigned char *msgin, size_t msginlen,
     fault->handbufalloc = msginlen + GROWTH_ALLOWANCE;
     memcpy(buf, msgin, msginlen);
 
-    if (!PACKET_buf_init(&pkt, buf, msginlen)
-        || !PACKET_get_1(&pkt, &msgtype)
-        || !PACKET_get_net_3(&pkt, &payloadlen)
-        || PACKET_remaining(&pkt) != payloadlen)
+    CBS_init(&pkt, buf, msginlen);
+    if (!CBS_get_u8(&pkt, &msgtype)
+        || !CBS_get_u24(&pkt, &payloadlen)
+        || CBS_len(&pkt) != payloadlen)
         return 0;
 
     /* Parse specific message types */
@@ -980,7 +980,7 @@ static int handshake_mutate(const unsigned char *msgin, size_t msginlen,
          * The EncryptedExtensions message is very simple. It just has an
          * extensions block in it and nothing else.
          */
-        ee.extensions = (unsigned char *)PACKET_data(&pkt);
+        ee.extensions = (unsigned char *)CBS_data(&pkt);
         ee.extensionslen = payloadlen;
         if (!fault->encextcb(fault, &ee, payloadlen, fault->encextcbarg))
             return 0;
@@ -1085,36 +1085,36 @@ int qtest_fault_delete_extension(QTEST_FAULT *fault,
     size_t *extlen,
     BUF_MEM *old_ext)
 {
-    PACKET pkt, sub, subext;
+    CBS pkt, sub, subext;
     WPACKET old_ext_wpkt;
-    unsigned int type;
+    uint16_t type;
     const unsigned char *start, *end;
     size_t newlen, w;
     size_t msglen = fault->handbuflen;
 
-    if (!PACKET_buf_init(&pkt, ext, *extlen))
-        return 0;
+    CBS_init(&pkt, ext, *extlen);
 
     /* Extension block starts with 2 bytes for extension block length */
-    if (!PACKET_as_length_prefixed_2(&pkt, &sub))
+    if (!CBS_get_u16_length_prefixed(&pkt, &sub)
+        || CBS_len(&pkt) != 0)
         return 0;
 
     do {
-        start = PACKET_data(&sub);
-        if (!PACKET_get_net_2(&sub, &type)
-            || !PACKET_get_length_prefixed_2(&sub, &subext))
+        start = CBS_data(&sub);
+        if (!CBS_get_u16(&sub, &type)
+            || !CBS_get_u16_length_prefixed(&sub, &subext))
             return 0;
     } while (type != exttype);
 
     /* Found it */
-    end = PACKET_data(&sub);
+    end = CBS_data(&sub);
 
     if (old_ext != NULL) {
         if (!WPACKET_init(&old_ext_wpkt, old_ext))
             return 0;
 
-        if (!WPACKET_memcpy(&old_ext_wpkt, PACKET_data(&subext),
-                PACKET_remaining(&subext))
+        if (!WPACKET_memcpy(&old_ext_wpkt, CBS_data(&subext),
+                CBS_len(&subext))
             || !WPACKET_get_total_written(&old_ext_wpkt, &w)) {
             WPACKET_cleanup(&old_ext_wpkt);
             return 0;
@@ -1127,7 +1127,7 @@ int qtest_fault_delete_extension(QTEST_FAULT *fault,
     /*
      * If we're not the last extension we need to move the rest earlier. The
      * cast below is safe because we own the underlying buffer and we're no
-     * longer making PACKET calls.
+     * longer making CBS calls.
      */
     if (end < ext + *extlen)
         memmove((unsigned char *)start, end, end - start);
@@ -1174,7 +1174,7 @@ static int pcipher_sendmmsg(BIO *b, BIO_MSG *msg, size_t stride,
     int ret = 0;
     size_t i = 0, tmpnump;
     QUIC_PKT_HDR hdr;
-    PACKET pkt;
+    CBS pkt;
     unsigned char *tmpdata;
     QTEST_DATA *bdata = NULL;
 
@@ -1203,8 +1203,7 @@ static int pcipher_sendmmsg(BIO *b, BIO_MSG *msg, size_t stride,
         bdata->fault->msgalloc = bdata->fault->msg.data_len + GROWTH_ALLOWANCE;
 
         if (bdata->fault->pciphercb != NULL) {
-            if (!PACKET_buf_init(&pkt, bdata->fault->msg.data, bdata->fault->msg.data_len))
-                return 0;
+            CBS_init(&pkt, bdata->fault->msg.data, bdata->fault->msg.data_len);
 
             do {
                 if (!ossl_quic_wire_decode_pkt_hdr(&pkt,
@@ -1228,7 +1227,7 @@ static int pcipher_sendmmsg(BIO *b, BIO_MSG *msg, size_t stride,
                  * mechanism for the callback to change the encrypted data
                  * length. It's not clear if that's needed or not.
                  */
-            } while (PACKET_remaining(&pkt) > 0);
+            } while (CBS_len(&pkt) > 0);
         }
 
         if (bdata->fault->datagramcb != NULL

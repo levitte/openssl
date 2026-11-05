@@ -7,7 +7,7 @@
  * https://www.openssl.org/source/license.html
  */
 
-#include "internal/packet_quic.h"
+#include "internal/bytestring_quic.h"
 #include "internal/nelem.h"
 #include "internal/quic_wire.h"
 #include "internal/quic_record_rx.h"
@@ -34,14 +34,14 @@ static int depack_do_implicit_stream_create(QUIC_CHANNEL *ch,
     uint64_t frame_type,
     QUIC_STREAM **result);
 
-static int depack_do_frame_padding(PACKET *pkt)
+static int depack_do_frame_padding(CBS *pkt)
 {
     /* We ignore this frame */
     ossl_quic_wire_decode_padding(pkt);
     return 1;
 }
 
-static int depack_do_frame_ping(PACKET *pkt, QUIC_CHANNEL *ch,
+static int depack_do_frame_ping(CBS *pkt, QUIC_CHANNEL *ch,
     uint32_t enc_level,
     OSSL_ACKM_RX_PKT *ackm_data)
 {
@@ -58,7 +58,7 @@ static int depack_do_frame_ping(PACKET *pkt, QUIC_CHANNEL *ch,
     return 1;
 }
 
-static int depack_do_frame_ack(PACKET *pkt, QUIC_CHANNEL *ch,
+static int depack_do_frame_ack(CBS *pkt, QUIC_CHANNEL *ch,
     int packet_space, OSSL_TIME received,
     uint64_t frame_type,
     OSSL_QRX_PKT *qpacket)
@@ -150,7 +150,7 @@ malformed:
     return 0;
 }
 
-static int depack_do_frame_reset_stream(PACKET *pkt,
+static int depack_do_frame_reset_stream(CBS *pkt,
     QUIC_CHANNEL *ch,
     OSSL_ACKM_RX_PKT *ackm_data)
 {
@@ -226,7 +226,7 @@ static int depack_do_frame_reset_stream(PACKET *pkt,
     return 1;
 }
 
-static int depack_do_frame_stop_sending(PACKET *pkt,
+static int depack_do_frame_stop_sending(CBS *pkt,
     QUIC_CHANNEL *ch,
     OSSL_ACKM_RX_PKT *ackm_data)
 {
@@ -271,7 +271,7 @@ static int depack_do_frame_stop_sending(PACKET *pkt,
     return 1;
 }
 
-static int depack_do_frame_crypto(PACKET *pkt, QUIC_CHANNEL *ch,
+static int depack_do_frame_crypto(CBS *pkt, QUIC_CHANNEL *ch,
     OSSL_QRX_PKT *parent_pkt,
     OSSL_ACKM_RX_PKT *ackm_data,
     uint64_t *datalen)
@@ -335,7 +335,7 @@ static int depack_do_frame_crypto(PACKET *pkt, QUIC_CHANNEL *ch,
     return 1;
 }
 
-static int depack_do_frame_new_token(PACKET *pkt, QUIC_CHANNEL *ch,
+static int depack_do_frame_new_token(CBS *pkt, QUIC_CHANNEL *ch,
     OSSL_ACKM_RX_PKT *ackm_data)
 {
     const uint8_t *token;
@@ -504,7 +504,7 @@ static int depack_do_implicit_stream_create(QUIC_CHANNEL *ch,
     return 1;
 }
 
-static int depack_do_frame_stream(PACKET *pkt, QUIC_CHANNEL *ch,
+static int depack_do_frame_stream(CBS *pkt, QUIC_CHANNEL *ch,
     OSSL_QRX_PKT *parent_pkt,
     OSSL_ACKM_RX_PKT *ackm_data,
     uint64_t frame_type,
@@ -679,7 +679,7 @@ static void update_streams_uni(QUIC_STREAM *s, void *arg)
     ossl_quic_stream_map_update_state(&ch->qsm, s);
 }
 
-static int depack_do_frame_max_data(PACKET *pkt, QUIC_CHANNEL *ch,
+static int depack_do_frame_max_data(CBS *pkt, QUIC_CHANNEL *ch,
     OSSL_ACKM_RX_PKT *ackm_data)
 {
     uint64_t max_data = 0;
@@ -697,7 +697,7 @@ static int depack_do_frame_max_data(PACKET *pkt, QUIC_CHANNEL *ch,
     return 1;
 }
 
-static int depack_do_frame_max_stream_data(PACKET *pkt,
+static int depack_do_frame_max_stream_data(CBS *pkt,
     QUIC_CHANNEL *ch,
     OSSL_ACKM_RX_PKT *ackm_data)
 {
@@ -736,7 +736,7 @@ static int depack_do_frame_max_stream_data(PACKET *pkt,
     return 1;
 }
 
-static int depack_do_frame_max_streams(PACKET *pkt,
+static int depack_do_frame_max_streams(CBS *pkt,
     QUIC_CHANNEL *ch,
     OSSL_ACKM_RX_PKT *ackm_data,
     uint64_t frame_type)
@@ -785,7 +785,7 @@ static int depack_do_frame_max_streams(PACKET *pkt,
     return 1;
 }
 
-static int depack_do_frame_data_blocked(PACKET *pkt,
+static int depack_do_frame_data_blocked(CBS *pkt,
     QUIC_CHANNEL *ch,
     OSSL_ACKM_RX_PKT *ackm_data)
 {
@@ -803,7 +803,7 @@ static int depack_do_frame_data_blocked(PACKET *pkt,
     return 1;
 }
 
-static int depack_do_frame_stream_data_blocked(PACKET *pkt,
+static int depack_do_frame_stream_data_blocked(CBS *pkt,
     QUIC_CHANNEL *ch,
     OSSL_ACKM_RX_PKT *ackm_data)
 {
@@ -850,7 +850,7 @@ static int depack_do_frame_stream_data_blocked(PACKET *pkt,
     return 1;
 }
 
-static int depack_do_frame_streams_blocked(PACKET *pkt,
+static int depack_do_frame_streams_blocked(CBS *pkt,
     QUIC_CHANNEL *ch,
     OSSL_ACKM_RX_PKT *ackm_data,
     uint64_t frame_type)
@@ -883,7 +883,7 @@ static int depack_do_frame_streams_blocked(PACKET *pkt,
     return 1;
 }
 
-static int depack_do_frame_new_conn_id(PACKET *pkt,
+static int depack_do_frame_new_conn_id(CBS *pkt,
     QUIC_CHANNEL *ch,
     OSSL_ACKM_RX_PKT *ackm_data)
 {
@@ -902,7 +902,7 @@ static int depack_do_frame_new_conn_id(PACKET *pkt,
     return 1;
 }
 
-static int depack_do_frame_retire_conn_id(PACKET *pkt,
+static int depack_do_frame_retire_conn_id(CBS *pkt,
     QUIC_CHANNEL *ch,
     OSSL_ACKM_RX_PKT *ackm_data)
 {
@@ -961,7 +961,7 @@ static void free_path_response(unsigned char *buf, size_t buf_len, void *arg)
     OPENSSL_free(buf);
 }
 
-static int depack_do_frame_path_challenge(PACKET *pkt,
+static int depack_do_frame_path_challenge(CBS *pkt,
     QUIC_CHANNEL *ch,
     OSSL_ACKM_RX_PKT *ackm_data)
 {
@@ -1024,7 +1024,7 @@ err:
     return 0;
 }
 
-static int depack_do_frame_path_response(PACKET *pkt,
+static int depack_do_frame_path_response(CBS *pkt,
     QUIC_CHANNEL *ch,
     OSSL_ACKM_RX_PKT *ackm_data)
 {
@@ -1043,7 +1043,7 @@ static int depack_do_frame_path_response(PACKET *pkt,
     return 1;
 }
 
-static int depack_do_frame_conn_close(PACKET *pkt, QUIC_CHANNEL *ch,
+static int depack_do_frame_conn_close(CBS *pkt, QUIC_CHANNEL *ch,
     uint64_t frame_type)
 {
     OSSL_QUIC_FRAME_CONN_CLOSE frame_data;
@@ -1060,7 +1060,7 @@ static int depack_do_frame_conn_close(PACKET *pkt, QUIC_CHANNEL *ch,
     return 1;
 }
 
-static int depack_do_frame_handshake_done(PACKET *pkt,
+static int depack_do_frame_handshake_done(CBS *pkt,
     QUIC_CHANNEL *ch,
     OSSL_ACKM_RX_PKT *ackm_data)
 {
@@ -1079,14 +1079,14 @@ static int depack_do_frame_handshake_done(PACKET *pkt,
 
 /* Main frame processor */
 
-static int depack_process_frames(QUIC_CHANNEL *ch, PACKET *pkt,
+static int depack_process_frames(QUIC_CHANNEL *ch, CBS *pkt,
     OSSL_QRX_PKT *parent_pkt, uint32_t enc_level,
     OSSL_TIME received, OSSL_ACKM_RX_PKT *ackm_data)
 {
     uint32_t pkt_type = parent_pkt->hdr->type;
     uint32_t packet_space = ossl_quic_enc_level_to_pn_space(enc_level);
 
-    if (PACKET_remaining(pkt) == 0) {
+    if (CBS_len(pkt) == 0) {
         /*
          * RFC 9000 s. 12.4: An endpoint MUST treat receipt of a packet
          * containing no frames as a connection error of type
@@ -1099,14 +1099,14 @@ static int depack_process_frames(QUIC_CHANNEL *ch, PACKET *pkt,
         return 0;
     }
 
-    while (PACKET_remaining(pkt) > 0) {
+    while (CBS_len(pkt) > 0) {
         int was_minimal;
         uint64_t frame_type;
         const unsigned char *sof = NULL;
         uint64_t datalen = 0;
 
         if (ch->msg_callback != NULL)
-            sof = PACKET_data(pkt);
+            sof = CBS_data(pkt);
 
         if (!ossl_quic_wire_peek_frame_header(pkt, &frame_type, &was_minimal)) {
             ossl_quic_channel_raise_protocol_error(ch,
@@ -1438,7 +1438,7 @@ static int depack_process_frames(QUIC_CHANNEL *ch, PACKET *pkt,
         if (ch->msg_callback != NULL) {
             int ctype = SSL3_RT_QUIC_FRAME_FULL;
 
-            size_t framelen = PACKET_data(pkt) - sof;
+            size_t framelen = CBS_data(pkt) - sof;
 
             if (frame_type == OSSL_QUIC_FRAME_TYPE_PADDING) {
                 ctype = SSL3_RT_QUIC_FRAME_PADDING;
@@ -1459,7 +1459,7 @@ static int depack_process_frames(QUIC_CHANNEL *ch, PACKET *pkt,
 QUIC_NEEDS_LOCK
 int ossl_quic_handle_frames(QUIC_CHANNEL *ch, OSSL_QRX_PKT *qpacket)
 {
-    PACKET pkt;
+    CBS pkt;
     OSSL_ACKM_RX_PKT ackm_data;
     uint32_t enc_level;
 
@@ -1498,8 +1498,8 @@ int ossl_quic_handle_frames(QUIC_CHANNEL *ch, OSSL_QRX_PKT *qpacket)
         ossl_quic_tx_packetiser_set_validated(ch->txp);
 
     /* Now that special cases are out of the way, parse frames */
-    if (!PACKET_buf_init(&pkt, qpacket->hdr->data, qpacket->hdr->len)
-        || !depack_process_frames(ch, &pkt, qpacket,
+    CBS_init(&pkt, qpacket->hdr->data, qpacket->hdr->len);
+    if (!depack_process_frames(ch, &pkt, qpacket,
             enc_level,
             qpacket->time,
             &ackm_data))

@@ -1389,7 +1389,7 @@ static int ch_on_transport_params(const unsigned char *params,
     void *arg)
 {
     QUIC_CHANNEL *ch = arg;
-    PACKET pkt;
+    CBS pkt;
     uint64_t id, v;
     size_t len;
     const unsigned char *body;
@@ -1437,13 +1437,9 @@ static int ch_on_transport_params(const unsigned char *params,
         goto malformed;
     }
 
-    if (!PACKET_buf_init(&pkt, params, params_len)) {
-        ossl_quic_channel_raise_protocol_error(ch, OSSL_QUIC_ERR_INTERNAL_ERROR, 0,
-            "internal error (packet buf init)");
-        return 0;
-    }
+    CBS_init(&pkt, params, params_len);
 
-    while (PACKET_remaining(&pkt) > 0) {
+    while (CBS_len(&pkt) > 0) {
         if (!ossl_quic_wire_peek_transport_param(&pkt, &id))
             goto malformed;
 
@@ -2413,8 +2409,8 @@ static void ch_rx_handle_packet(QUIC_CHANNEL *ch, int channel_only)
     uint32_t enc_level;
     int old_have_processed_any_pkt = ch->have_processed_any_pkt;
     OSSL_QTX_IOVEC iovec;
-    PACKET vpkt;
-    unsigned long supported_ver;
+    CBS vpkt;
+    uint32_t supported_ver;
 
     assert(ch->qrx_pkt != NULL);
 
@@ -2527,16 +2523,15 @@ static void ch_rx_handle_packet(QUIC_CHANNEL *ch, int channel_only)
          * needs to be traversed so that we can find a matching
          * version
          */
-        if (!PACKET_buf_init(&vpkt, ch->qrx_pkt->hdr->data,
-                ch->qrx_pkt->hdr->len))
-            return;
+        CBS_init(&vpkt, ch->qrx_pkt->hdr->data,
+            ch->qrx_pkt->hdr->len);
 
-        while (PACKET_remaining(&vpkt) > 0) {
+        while (CBS_len(&vpkt) > 0) {
             /*
              * We only support quic version 1 at the moment, so
              * look to see if that's offered
              */
-            if (!PACKET_get_net_4(&vpkt, &supported_ver))
+            if (!CBS_get_u32(&vpkt, &supported_ver))
                 return;
 
             if (supported_ver == QUIC_VERSION_1) {

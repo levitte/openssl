@@ -3238,15 +3238,15 @@ static void script_41_trace(int write_p, int version, int content_type,
 {
     uint64_t frame_type, frame_data;
     int was_minimal;
-    PACKET pkt;
+    CBS pkt;
 
     if (version != OSSL_QUIC1_VERSION
         || content_type != SSL3_RT_QUIC_FRAME_FULL
         || len < 1)
         return;
 
-    if (!TEST_true(PACKET_buf_init(&pkt, buf, len))
-        || !TEST_true(ossl_quic_wire_peek_frame_header(&pkt, &frame_type,
+    CBS_init(&pkt, buf, len);
+    if (!TEST_true(ossl_quic_wire_peek_frame_header(&pkt, &frame_type,
             &was_minimal))) {
         ++script_41_bad_responses;
         return;

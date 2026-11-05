@@ -15,6 +15,7 @@
 #include "internal/time.h"
 #include "internal/quic_types.h"
 #include "internal/packet_quic.h"
+#include "internal/bytestring_quic.h"
 
 #ifndef OPENSSL_NO_QUIC
 
@@ -466,13 +467,13 @@ int ossl_quic_wire_encode_transport_param_cid(WPACKET *wpkt,
  * These functions return 1 on success or 0 for failure. Typical reasons
  * why these functions may fail include:
  *
- *   - A frame decode function is called but the frame in the PACKET's buffer
+ *   - A frame decode function is called but the frame in the CBS's buffer
  *     is not of the correct type.
  *
  *   - A variable-length field in the encoded frame appears to exceed the bounds
- *     of the PACKET's buffer.
+ *     of the CBS's buffer.
  *
- * These functions should be called with the PACKET pointing to the start of the
+ * These functions should be called with the CBS pointing to the start of the
  * frame (including the initial type field), and consume an entire frame
  * including its type field. The expectation is that the caller will have
  * already discerned the frame type using ossl_quic_wire_peek_frame_header().
@@ -483,14 +484,14 @@ int ossl_quic_wire_encode_transport_param_cid(WPACKET *wpkt,
  * position). This can be used to determine the frame type and determine which
  * frame decoding function to call.
  */
-int ossl_quic_wire_peek_frame_header(PACKET *pkt, uint64_t *type,
+int ossl_quic_wire_peek_frame_header(CBS *pkt, uint64_t *type,
     int *was_minimal);
 
 /*
  * Like ossl_quic_wire_peek_frame_header, but advances the current position
  * so that the type field is consumed. For advanced use only.
  */
-int ossl_quic_wire_skip_frame_header(PACKET *pkt, uint64_t *type);
+int ossl_quic_wire_skip_frame_header(CBS *pkt, uint64_t *type);
 
 /*
  * Determines how many ranges are needed to decode a QUIC ACK frame.
@@ -498,9 +499,9 @@ int ossl_quic_wire_skip_frame_header(PACKET *pkt, uint64_t *type);
  * The number of ranges which must be allocated before the call to
  * ossl_quic_wire_decode_frame_ack is written to *total_ranges.
  *
- * The PACKET is not advanced.
+ * The CBS is not advanced.
  */
-int ossl_quic_wire_peek_frame_ack_num_ranges(const PACKET *pkt,
+int ossl_quic_wire_peek_frame_ack_num_ranges(const CBS *pkt,
     uint64_t *total_ranges);
 
 /*
@@ -530,7 +531,7 @@ int ossl_quic_wire_peek_frame_ack_num_ranges(const PACKET *pkt,
  * decode the ack_delay field. This must match the ack_delay_exponent value used
  * to encode the frame.
  */
-int ossl_quic_wire_decode_frame_ack(PACKET *pkt,
+int ossl_quic_wire_decode_frame_ack(CBS *pkt,
     uint32_t ack_delay_exponent,
     OSSL_QUIC_FRAME_ACK *ack,
     uint64_t *total_ranges);
@@ -538,38 +539,38 @@ int ossl_quic_wire_decode_frame_ack(PACKET *pkt,
 /*
  * Decodes a QUIC RESET_STREAM frame.
  */
-int ossl_quic_wire_decode_frame_reset_stream(PACKET *pkt,
+int ossl_quic_wire_decode_frame_reset_stream(CBS *pkt,
     OSSL_QUIC_FRAME_RESET_STREAM *f);
 
 /*
  * Decodes a QUIC STOP_SENDING frame.
  */
-int ossl_quic_wire_decode_frame_stop_sending(PACKET *pkt,
+int ossl_quic_wire_decode_frame_stop_sending(CBS *pkt,
     OSSL_QUIC_FRAME_STOP_SENDING *f);
 
 /*
  * Decodes a QUIC CRYPTO frame.
  *
- * f->data is set to point inside the packet buffer inside the PACKET, therefore
+ * f->data is set to point inside the packet buffer inside the CBS, therefore
  * it is safe to access for as long as the packet buffer exists. If nodata is
- * set to 1 then reading the PACKET stops after the frame header and f->data is
+ * set to 1 then reading the CBS stops after the frame header and f->data is
  * set to NULL.
  */
-int ossl_quic_wire_decode_frame_crypto(PACKET *pkt, int nodata,
+int ossl_quic_wire_decode_frame_crypto(CBS *pkt, int nodata,
     OSSL_QUIC_FRAME_CRYPTO *f);
 
 /*
  * Decodes a QUIC NEW_TOKEN frame. *token is written with a pointer to the token
  * bytes and *token_len is written with the length of the token in bytes.
  */
-int ossl_quic_wire_decode_frame_new_token(PACKET *pkt,
+int ossl_quic_wire_decode_frame_new_token(CBS *pkt,
     const unsigned char **token,
     size_t *token_len);
 
 /*
  * Decodes a QUIC STREAM frame.
  *
- * If nodata is set to 1 then reading the PACKET stops after the frame header
+ * If nodata is set to 1 then reading the CBS stops after the frame header
  * and f->data is set to NULL. In this case f->len will also be 0 in the event
  * that "has_explicit_len" is 0.
  *
@@ -583,33 +584,33 @@ int ossl_quic_wire_decode_frame_new_token(PACKET *pkt,
  * If the frame did not contain a length field, this means that the frame runs
  * until the end of the packet. This function sets f->has_explicit_len to zero,
  * and f->len to the amount of data remaining in the input buffer. Therefore,
- * this function should be used with a PACKET representing a single packet (and
+ * this function should be used with a CBS representing a single packet (and
  * not e.g. multiple packets).
  *
  * Note also that this means f->len is always valid after this function returns
  * successfully, regardless of the value of f->has_explicit_len.
  *
- * f->data points inside the packet buffer inside the PACKET, therefore it is
+ * f->data points inside the packet buffer inside the CBS, therefore it is
  * safe to access for as long as the packet buffer exists.
  *
  * f->is_fin is set according to whether the frame was marked as ending the
  * stream.
  */
-int ossl_quic_wire_decode_frame_stream(PACKET *pkt, int nodata,
+int ossl_quic_wire_decode_frame_stream(CBS *pkt, int nodata,
     OSSL_QUIC_FRAME_STREAM *f);
 
 /*
  * Decodes a QUIC MAX_DATA frame. The Maximum Data field is written to
  * *max_data.
  */
-int ossl_quic_wire_decode_frame_max_data(PACKET *pkt,
+int ossl_quic_wire_decode_frame_max_data(CBS *pkt,
     uint64_t *max_data);
 
 /*
  * Decodes a QUIC MAX_STREAM_DATA frame. The Stream ID is written to *stream_id
  * and Maximum Stream Data field is written to *max_stream_data.
  */
-int ossl_quic_wire_decode_frame_max_stream_data(PACKET *pkt,
+int ossl_quic_wire_decode_frame_max_stream_data(CBS *pkt,
     uint64_t *stream_id,
     uint64_t *max_stream_data);
 /*
@@ -620,21 +621,21 @@ int ossl_quic_wire_decode_frame_max_stream_data(PACKET *pkt,
  * denoted by the frame type; the caller should examine the frame type to
  * determine this.
  */
-int ossl_quic_wire_decode_frame_max_streams(PACKET *pkt,
+int ossl_quic_wire_decode_frame_max_streams(CBS *pkt,
     uint64_t *max_streams);
 
 /*
  * Decodes a QUIC DATA_BLOCKED frame. The Maximum Data field is written to
  * *max_data.
  */
-int ossl_quic_wire_decode_frame_data_blocked(PACKET *pkt,
+int ossl_quic_wire_decode_frame_data_blocked(CBS *pkt,
     uint64_t *max_data);
 
 /*
  * Decodes a QUIC STREAM_DATA_BLOCKED frame. The Stream ID and Maximum Stream
  * Data fields are written to *stream_id and *max_stream_data respectively.
  */
-int ossl_quic_wire_decode_frame_stream_data_blocked(PACKET *pkt,
+int ossl_quic_wire_decode_frame_stream_data_blocked(CBS *pkt,
     uint64_t *stream_id,
     uint64_t *max_stream_data);
 
@@ -646,7 +647,7 @@ int ossl_quic_wire_decode_frame_stream_data_blocked(PACKET *pkt,
  * denoted by the frame type; the caller should examine the frame type to
  * determine this.
  */
-int ossl_quic_wire_decode_frame_streams_blocked(PACKET *pkt,
+int ossl_quic_wire_decode_frame_streams_blocked(CBS *pkt,
     uint64_t *max_streams);
 
 /*
@@ -654,30 +655,30 @@ int ossl_quic_wire_decode_frame_streams_blocked(PACKET *pkt,
  * frame is written to *f.
  *
  * The conn_id field is set to point to the connection ID string inside the
- * packet buffer; it is therefore valid for as long as the PACKET's buffer is
+ * packet buffer; it is therefore valid for as long as the CBS's buffer is
  * valid. The conn_id_len field is set to the length of the connection ID string
  * in bytes.
  */
-int ossl_quic_wire_decode_frame_new_conn_id(PACKET *pkt,
+int ossl_quic_wire_decode_frame_new_conn_id(CBS *pkt,
     OSSL_QUIC_FRAME_NEW_CONN_ID *f);
 
 /*
  * Decodes a QUIC RETIRE_CONNECTION_ID frame. The Sequence Number field
  * is written to *seq_num.
  */
-int ossl_quic_wire_decode_frame_retire_conn_id(PACKET *pkt,
+int ossl_quic_wire_decode_frame_retire_conn_id(CBS *pkt,
     uint64_t *seq_num);
 
 /*
  * Decodes a QUIC PATH_CHALLENGE frame. The Data field is written to *data.
  */
-int ossl_quic_wire_decode_frame_path_challenge(PACKET *pkt,
+int ossl_quic_wire_decode_frame_path_challenge(CBS *pkt,
     uint64_t *data);
 
 /*
  * Decodes a QUIC PATH_CHALLENGE frame. The Data field is written to *data.
  */
-int ossl_quic_wire_decode_frame_path_response(PACKET *pkt,
+int ossl_quic_wire_decode_frame_path_response(CBS *pkt,
     uint64_t *data);
 
 /*
@@ -685,7 +686,7 @@ int ossl_quic_wire_decode_frame_path_response(PACKET *pkt,
  * of the frame is written to *f.
  *
  * The reason field is set to point to the UTF-8 reason string inside
- * the packet buffer; it is therefore valid for as long as the PACKET's
+ * the packet buffer; it is therefore valid for as long as the CBS's
  * buffer is valid. The reason_len field is set to the length of the
  * reason string in bytes.
  *
@@ -693,7 +694,7 @@ int ossl_quic_wire_decode_frame_path_response(PACKET *pkt,
  *
  * Returns 1 on success or 0 on failure.
  */
-int ossl_quic_wire_decode_frame_conn_close(PACKET *pkt,
+int ossl_quic_wire_decode_frame_conn_close(CBS *pkt,
     OSSL_QUIC_FRAME_CONN_CLOSE *f);
 
 /*
@@ -701,35 +702,35 @@ int ossl_quic_wire_decode_frame_conn_close(PACKET *pkt,
  *
  * Returns the number of PADDING frames decoded or 0 on error.
  */
-size_t ossl_quic_wire_decode_padding(PACKET *pkt);
+size_t ossl_quic_wire_decode_padding(CBS *pkt);
 
 /*
  * Decodes a PING frame. The frame has no arguments.
  */
-int ossl_quic_wire_decode_frame_ping(PACKET *pkt);
+int ossl_quic_wire_decode_frame_ping(CBS *pkt);
 
 /*
  * Decodes a HANDSHAKE_DONE frame. The frame has no arguments.
  */
-int ossl_quic_wire_decode_frame_handshake_done(PACKET *pkt);
+int ossl_quic_wire_decode_frame_handshake_done(CBS *pkt);
 
 /*
  * Peeks at the ID of the next QUIC transport parameter TLV in the stream.
  * The ID is written to *id.
  */
-int ossl_quic_wire_peek_transport_param(PACKET *pkt, uint64_t *id);
+int ossl_quic_wire_peek_transport_param(CBS *pkt, uint64_t *id);
 
 /*
  * Decodes a QUIC transport parameter TLV. A pointer to the value buffer is
- * returned on success. This points inside the PACKET's buffer and is therefore
- * valid as long as the PACKET's buffer is valid.
+ * returned on success. This points inside the CBS's buffer and is therefore
+ * valid as long as the CBS's buffer is valid.
  *
  * The transport parameter ID is written to *id (if non-NULL) and the length of
  * the payload in bytes is written to *len.
  *
  * Returns NULL on failure.
  */
-const unsigned char *ossl_quic_wire_decode_transport_param_bytes(PACKET *pkt,
+const unsigned char *ossl_quic_wire_decode_transport_param_bytes(CBS *pkt,
     uint64_t *id,
     size_t *len);
 
@@ -739,7 +740,7 @@ const unsigned char *ossl_quic_wire_decode_transport_param_bytes(PACKET *pkt,
  * The transport parameter ID is written to *id (if non-NULL) and the value is
  * written to *value.
  */
-int ossl_quic_wire_decode_transport_param_int(PACKET *pkt,
+int ossl_quic_wire_decode_transport_param_int(CBS *pkt,
     uint64_t *id,
     uint64_t *value);
 
@@ -749,7 +750,7 @@ int ossl_quic_wire_decode_transport_param_int(PACKET *pkt,
  * The transport parameter ID is written to *id (if non-NULL) and the value is
  * written to *value.
  */
-int ossl_quic_wire_decode_transport_param_cid(PACKET *pkt,
+int ossl_quic_wire_decode_transport_param_cid(CBS *pkt,
     uint64_t *id,
     QUIC_CONN_ID *cid);
 
@@ -763,7 +764,7 @@ typedef struct quic_preferred_addr_st {
     QUIC_CONN_ID cid;
 } QUIC_PREFERRED_ADDR;
 
-int ossl_quic_wire_decode_transport_param_preferred_addr(PACKET *pkt,
+int ossl_quic_wire_decode_transport_param_preferred_addr(CBS *pkt,
     QUIC_PREFERRED_ADDR *p);
 
 #endif

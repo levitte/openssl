@@ -7,6 +7,7 @@
  * https://www.openssl.org/source/license.html
  */
 #include "internal/packet.h"
+#include "internal/bytestring_quic.h"
 #include "internal/quic_txp.h"
 #include "internal/quic_statm.h"
 #include "internal/quic_demux.h"
@@ -59,7 +60,7 @@ struct helper {
     OSSL_QRX *qrx;
     OSSL_QRX_ARGS qrx_args;
     OSSL_QRX_PKT *qrx_pkt;
-    PACKET pkt;
+    CBS pkt;
     uint64_t frame_type;
     union {
         uint64_t max_data;
@@ -1347,10 +1348,7 @@ static int run_script(int script_idx, const struct script_op *script)
             h.qrx_pkt = NULL;
             if (!TEST_true(ossl_qrx_read_pkt(h.qrx, &h.qrx_pkt)))
                 goto err;
-            if (!TEST_true(PACKET_buf_init(&h.pkt,
-                    h.qrx_pkt->hdr->data,
-                    h.qrx_pkt->hdr->len)))
-                goto err;
+            CBS_init(&h.pkt, h.qrx_pkt->hdr->data, h.qrx_pkt->hdr->len);
             h.frame_type = UINT64_MAX;
             break;
         case OPK_RX_PKT_NONE:
@@ -1467,7 +1465,7 @@ static int run_script(int script_idx, const struct script_op *script)
             break;
         case OPK_EXPECT_NO_FRAME:
             skip_padding(&h);
-            if (!TEST_size_t_eq(PACKET_remaining(&h.pkt), 0))
+            if (!TEST_size_t_eq(CBS_len(&h.pkt), 0))
                 goto err;
             break;
         case OPK_PROVIDE_SECRET:

@@ -78,7 +78,7 @@ static void put_token(BIO *bio, const uint8_t *token, size_t token_len)
         put_data(bio, token, token_len);
 }
 
-static int frame_ack(BIO *bio, PACKET *pkt)
+static int frame_ack(BIO *bio, CBS *pkt)
 {
     OSSL_QUIC_FRAME_ACK ack;
     OSSL_QUIC_ACK_RANGE *ack_ranges = NULL;
@@ -125,7 +125,7 @@ end:
     return ret;
 }
 
-static int frame_reset_stream(BIO *bio, PACKET *pkt)
+static int frame_reset_stream(BIO *bio, CBS *pkt)
 {
     OSSL_QUIC_FRAME_RESET_STREAM frame_data;
 
@@ -142,7 +142,7 @@ static int frame_reset_stream(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int frame_stop_sending(BIO *bio, PACKET *pkt)
+static int frame_stop_sending(BIO *bio, CBS *pkt)
 {
     OSSL_QUIC_FRAME_STOP_SENDING frame_data;
 
@@ -157,7 +157,7 @@ static int frame_stop_sending(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int frame_crypto(BIO *bio, PACKET *pkt)
+static int frame_crypto(BIO *bio, CBS *pkt)
 {
     OSSL_QUIC_FRAME_CRYPTO frame_data;
 
@@ -170,7 +170,7 @@ static int frame_crypto(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int frame_new_token(BIO *bio, PACKET *pkt)
+static int frame_new_token(BIO *bio, CBS *pkt)
 {
     const uint8_t *token;
     size_t token_len;
@@ -185,7 +185,7 @@ static int frame_new_token(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int frame_stream(BIO *bio, PACKET *pkt, uint64_t frame_type)
+static int frame_stream(BIO *bio, CBS *pkt, uint64_t frame_type)
 {
 
     OSSL_QUIC_FRAME_STREAM frame_data;
@@ -247,7 +247,7 @@ static int frame_stream(BIO *bio, PACKET *pkt, uint64_t frame_type)
     return 1;
 }
 
-static int frame_max_data(BIO *bio, PACKET *pkt)
+static int frame_max_data(BIO *bio, CBS *pkt)
 {
     uint64_t max_data = 0;
 
@@ -259,7 +259,7 @@ static int frame_max_data(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int frame_max_stream_data(BIO *bio, PACKET *pkt)
+static int frame_max_stream_data(BIO *bio, CBS *pkt)
 {
     uint64_t stream_id = 0;
     uint64_t max_stream_data = 0;
@@ -274,7 +274,7 @@ static int frame_max_stream_data(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int frame_max_streams(BIO *bio, PACKET *pkt)
+static int frame_max_streams(BIO *bio, CBS *pkt)
 {
     uint64_t max_streams = 0;
 
@@ -286,7 +286,7 @@ static int frame_max_streams(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int frame_data_blocked(BIO *bio, PACKET *pkt)
+static int frame_data_blocked(BIO *bio, CBS *pkt)
 {
     uint64_t max_data = 0;
 
@@ -298,7 +298,7 @@ static int frame_data_blocked(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int frame_stream_data_blocked(BIO *bio, PACKET *pkt)
+static int frame_stream_data_blocked(BIO *bio, CBS *pkt)
 {
     uint64_t stream_id = 0;
     uint64_t max_data = 0;
@@ -313,7 +313,7 @@ static int frame_stream_data_blocked(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int frame_streams_blocked(BIO *bio, PACKET *pkt)
+static int frame_streams_blocked(BIO *bio, CBS *pkt)
 {
     uint64_t max_data = 0;
 
@@ -325,7 +325,7 @@ static int frame_streams_blocked(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int frame_new_conn_id(BIO *bio, PACKET *pkt)
+static int frame_new_conn_id(BIO *bio, CBS *pkt)
 {
     OSSL_QUIC_FRAME_NEW_CONN_ID frame_data;
 
@@ -346,7 +346,7 @@ static int frame_new_conn_id(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int frame_retire_conn_id(BIO *bio, PACKET *pkt)
+static int frame_retire_conn_id(BIO *bio, CBS *pkt)
 {
     uint64_t seq_num;
 
@@ -358,7 +358,7 @@ static int frame_retire_conn_id(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int frame_path_challenge(BIO *bio, PACKET *pkt)
+static int frame_path_challenge(BIO *bio, CBS *pkt)
 {
     uint64_t data = 0;
 
@@ -370,7 +370,7 @@ static int frame_path_challenge(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int frame_path_response(BIO *bio, PACKET *pkt)
+static int frame_path_response(BIO *bio, CBS *pkt)
 {
     uint64_t data = 0;
 
@@ -382,7 +382,7 @@ static int frame_path_response(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int frame_conn_closed(BIO *bio, PACKET *pkt)
+static int frame_conn_closed(BIO *bio, CBS *pkt)
 {
     OSSL_QUIC_FRAME_CONN_CLOSE frame_data;
 
@@ -398,7 +398,7 @@ static int frame_conn_closed(BIO *bio, PACKET *pkt)
     return 1;
 }
 
-static int trace_frame_data(BIO *bio, PACKET *pkt)
+static int trace_frame_data(BIO *bio, CBS *pkt)
 {
     uint64_t frame_type;
 
@@ -556,7 +556,7 @@ static int trace_frame_data(BIO *bio, PACKET *pkt)
         return 0;
     }
 
-    if (PACKET_remaining(pkt) != 0)
+    if (CBS_len(pkt) != 0)
         BIO_puts(bio, "    <unexpected trailing frame data skipped>\n");
 
     return 1;
@@ -566,7 +566,7 @@ int ossl_quic_trace(int write_p, int version, int content_type,
     const void *buf, size_t msglen, SSL *ssl, void *arg)
 {
     BIO *bio = arg;
-    PACKET pkt;
+    CBS pkt;
     size_t id_len = 0;
     QUIC_CHANNEL *ch;
 
@@ -585,8 +585,7 @@ int ossl_quic_trace(int write_p, int version, int content_type,
         QUIC_PKT_HDR hdr;
         size_t i;
 
-        if (!PACKET_buf_init(&pkt, buf, msglen))
-            return 0;
+        CBS_init(&pkt, buf, msglen);
         /* Decode the packet header */
         ch = ossl_quic_conn_get_channel(ssl);
         id_len = ossl_quic_channel_get_short_header_conn_id_len(ch);
@@ -632,8 +631,7 @@ int ossl_quic_trace(int write_p, int version, int content_type,
         BIO_puts(bio, write_p ? "Sent" : "Received");
         BIO_puts(bio, " Frame: ");
 
-        if (!PACKET_buf_init(&pkt, buf, msglen))
-            return 0;
+        CBS_init(&pkt, buf, msglen);
         if (!trace_frame_data(bio, &pkt)) {
             BIO_puts(bio, "  <error processing frame data>\n");
             return 0;

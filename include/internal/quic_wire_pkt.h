@@ -12,6 +12,7 @@
 
 #include <openssl/ssl.h>
 #include "internal/packet_quic.h"
+#include "internal/bytestring_quic.h"
 #include "internal/quic_types.h"
 
 #ifndef OPENSSL_NO_QUIC
@@ -382,7 +383,7 @@ typedef struct quic_pkt_hdr_st {
 
     /*
      * [i] Token field in Initial packet. Points to memory inside the decoded
-     * PACKET, and therefore is valid for as long as the PACKET's buffer is
+     * CBS, and therefore is valid for as long as the CBS's buffer is
      * valid. token_len is the length of the token in bytes.
      *
      * Valid if (type == INITIAL).
@@ -403,7 +404,7 @@ typedef struct quic_pkt_hdr_st {
 
     /*
      * Pointer to start of payload data in the packet. Points to memory inside
-     * the decoded PACKET, and therefore is valid for as long as the PACKET'S
+     * the decoded CBS, and therefore is valid for as long as the CBS'S
      * buffer is valid. The length of the buffer in bytes is in len above.
      *
      * For Version Negotiation packets, points to the array of supported
@@ -446,7 +447,7 @@ struct quic_pkt_hdr_ptrs_st {
 
 /*
  * If partial is 1, reads the unprotected parts of a protected packet header
- * from a PACKET, performing a partial decode.
+ * from a CBS, performing a partial decode.
  *
  * If partial is 0, the input is assumed to have already had header protection
  * removed, and all header fields are decoded.
@@ -475,7 +476,7 @@ struct quic_pkt_hdr_ptrs_st {
 #define QUIC_PKT_HDR_DECODE_DECODE_ERR (1 << 0)
 #define QUIC_PKT_HDR_DECODE_BAD_VERSION (1 << 1)
 
-int ossl_quic_wire_decode_pkt_hdr(PACKET *pkt,
+int ossl_quic_wire_decode_pkt_hdr(CBS *pkt,
     size_t short_conn_id_len,
     int partial,
     int nodata,
@@ -529,7 +530,7 @@ int ossl_quic_wire_encode_pkt_hdr(WPACKET *pkt,
  *
  * Information on packet length is not decoded, as this only needs to be used on
  * the first packet in a datagram, therefore this takes a buffer and not a
- * PACKET.
+ * CBS.
  *
  * Returns 1 on success and 0 on failure.
  */

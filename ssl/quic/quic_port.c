@@ -1195,35 +1195,35 @@ err:
 static int parse_validation_token(QUIC_VALIDATION_TOKEN *token,
     const unsigned char *buf, size_t buf_len)
 {
-    PACKET pkt, subpkt;
+    CBS pkt, subpkt;
 
     if (buf == NULL || token == NULL)
         return 0;
 
     token->remote_addr = NULL;
 
-    if (!PACKET_buf_init(&pkt, buf, buf_len)
-        || !PACKET_copy_bytes(&pkt, &token->is_retry, sizeof(token->is_retry))
+    CBS_init(&pkt, buf, buf_len);
+    if (!CBS_copy_bytes(&pkt, &token->is_retry, sizeof(token->is_retry))
         || !(token->is_retry == 0 || token->is_retry == 1)
-        || !PACKET_copy_bytes(&pkt, (unsigned char *)&token->timestamp,
+        || !CBS_copy_bytes(&pkt, (unsigned char *)&token->timestamp,
             sizeof(token->timestamp))
         || (token->is_retry
-            && (!PACKET_get_length_prefixed_1(&pkt, &subpkt)
-                || (token->odcid.id_len = (unsigned char)PACKET_remaining(&subpkt))
+            && (!CBS_get_u8_length_prefixed(&pkt, &subpkt)
+                || (token->odcid.id_len = (unsigned char)CBS_len(&subpkt))
                     > QUIC_MAX_CONN_ID_LEN
-                || !PACKET_copy_bytes(&subpkt,
+                || !CBS_copy_bytes(&subpkt,
                     (unsigned char *)&token->odcid.id,
                     token->odcid.id_len)
-                || !PACKET_get_length_prefixed_1(&pkt, &subpkt)
-                || (token->rscid.id_len = (unsigned char)PACKET_remaining(&subpkt))
+                || !CBS_get_u8_length_prefixed(&pkt, &subpkt)
+                || (token->rscid.id_len = (unsigned char)CBS_len(&subpkt))
                     > QUIC_MAX_CONN_ID_LEN
-                || !PACKET_copy_bytes(&subpkt, (unsigned char *)&token->rscid.id,
+                || !CBS_copy_bytes(&subpkt, (unsigned char *)&token->rscid.id,
                     token->rscid.id_len)))
-        || !PACKET_get_length_prefixed_1(&pkt, &subpkt)
-        || (token->remote_addr_len = PACKET_remaining(&subpkt)) == 0
+        || !CBS_get_u8_length_prefixed(&pkt, &subpkt)
+        || (token->remote_addr_len = CBS_len(&subpkt)) == 0
         || (token->remote_addr = OPENSSL_malloc(token->remote_addr_len)) == NULL
-        || !PACKET_copy_bytes(&subpkt, token->remote_addr, token->remote_addr_len)
-        || PACKET_remaining(&pkt) != 0) {
+        || !CBS_copy_bytes(&subpkt, token->remote_addr, token->remote_addr_len)
+        || CBS_len(&pkt) != 0) {
         cleanup_validation_token(token);
         return 0;
     }
@@ -1644,7 +1644,7 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
     const QUIC_CONN_ID *dcid)
 {
     QUIC_PORT *port = arg;
-    PACKET pkt;
+    CBS pkt;
     QUIC_PKT_HDR hdr;
     QUIC_CHANNEL *ch = NULL, *new_ch = NULL;
     QUIC_CONN_ID odcid;
@@ -1693,8 +1693,7 @@ static void port_default_packet_handler(QUIC_URXE *e, void *arg,
     if (e->data_len < QUIC_MIN_INITIAL_DGRAM_LEN)
         goto undesirable;
 
-    if (!PACKET_buf_init(&pkt, ossl_quic_urxe_data(e), e->data_len))
-        goto undesirable;
+    CBS_init(&pkt, ossl_quic_urxe_data(e), e->data_len);
 
     /*
      * We set short_conn_id_len to SIZE_MAX here which will cause the decode
