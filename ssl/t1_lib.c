@@ -3144,9 +3144,9 @@ SSL_TICKET_STATUS tls_get_ticket_from_client(SSL_CONNECTION *s,
     if (!ticketext->present)
         return SSL_TICKET_NONE;
 
-    size = PACKET_remaining(&ticketext->data);
+    size = CBS_len(&ticketext->data);
 
-    return tls_decrypt_ticket(s, PACKET_data(&ticketext->data), size,
+    return tls_decrypt_ticket(s, CBS_data(&ticketext->data), size,
         hello->session_id, hello->session_id_len, ret);
 }
 
@@ -3651,13 +3651,13 @@ static int tls1_set_shared_sigalgs(SSL_CONNECTION *s)
     return 1;
 }
 
-int tls1_save_u16(PACKET *pkt, uint16_t **pdest, size_t *pdestlen, size_t maxnum)
+int tls1_save_u16(CBS *pkt, uint16_t **pdest, size_t *pdestlen, size_t maxnum)
 {
-    unsigned int stmp;
+    uint16_t stmp;
     size_t size, i;
     uint16_t *buf;
 
-    size = PACKET_remaining(pkt);
+    size = CBS_len(pkt);
 
     /* Invalid data length */
     if (size == 0 || (size & 1) != 0)
@@ -3674,7 +3674,7 @@ int tls1_save_u16(PACKET *pkt, uint16_t **pdest, size_t *pdestlen, size_t maxnum
 
     if ((buf = OPENSSL_malloc_array(size, sizeof(*buf))) == NULL)
         return 0;
-    for (i = 0; i < size && PACKET_get_net_2(pkt, &stmp); i++)
+    for (i = 0; i < size && CBS_get_u16(pkt, &stmp); i++)
         buf[i] = stmp;
 
     if (i != size) {
@@ -3689,7 +3689,7 @@ int tls1_save_u16(PACKET *pkt, uint16_t **pdest, size_t *pdestlen, size_t maxnum
     return 1;
 }
 
-int tls1_save_sigalgs(SSL_CONNECTION *s, PACKET *pkt, int cert)
+int tls1_save_sigalgs(SSL_CONNECTION *s, CBS *pkt, int cert)
 {
     /* Extension ignored for inappropriate versions */
     if (!SSL_USE_SIGALGS(s))

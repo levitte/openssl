@@ -1004,17 +1004,18 @@ err:
 static int dtls1_read_hm_header(unsigned char *msgheaderstart,
     struct hm_header_st *msg_hdr)
 {
-    unsigned long msg_len, frag_off, frag_len;
-    unsigned int msg_seq, msg_type;
-    PACKET msgheader;
+    uint32_t msg_len, frag_off, frag_len;
+    uint16_t msg_seq;
+    uint8_t msg_type;
+    CBS msgheader;
 
-    if (!PACKET_buf_init(&msgheader, msgheaderstart, DTLS1_HM_HEADER_LENGTH)
-        || !PACKET_get_1(&msgheader, &msg_type)
-        || !PACKET_get_net_3(&msgheader, &msg_len)
-        || !PACKET_get_net_2(&msgheader, &msg_seq)
-        || !PACKET_get_net_3(&msgheader, &frag_off)
-        || !PACKET_get_net_3(&msgheader, &frag_len)
-        || PACKET_remaining(&msgheader) != 0) {
+    CBS_init(&msgheader, msgheaderstart, DTLS1_HM_HEADER_LENGTH);
+    if (!CBS_get_u8(&msgheader, &msg_type)
+        || !CBS_get_u24(&msgheader, &msg_len)
+        || !CBS_get_u16(&msgheader, &msg_seq)
+        || !CBS_get_u24(&msgheader, &frag_off)
+        || !CBS_get_u24(&msgheader, &frag_len)
+        || CBS_len(&msgheader) != 0) {
         return 0;
     }
 
@@ -1383,16 +1384,16 @@ CON_FUNC_RETURN dtls_construct_ack(SSL_CONNECTION *s, WPACKET *pkt)
     return CON_FUNC_SUCCESS;
 }
 
-MSG_PROCESS_RETURN dtls_process_ack(SSL_CONNECTION *s, PACKET *pkt)
+MSG_PROCESS_RETURN dtls_process_ack(SSL_CONNECTION *s, CBS *pkt)
 {
-    PACKET record_numbers;
+    CBS record_numbers;
 
-    if (!PACKET_as_length_prefixed_2(pkt, &record_numbers)) {
+    if (!CBS_get_u16_length_prefixed(pkt, &record_numbers) || CBS_len(pkt) != 0) {
         SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_LENGTH_TOO_LONG);
         return MSG_PROCESS_ERROR;
     }
 
-    while (PACKET_remaining(&record_numbers) > 0) {
+    while (CBS_len(&record_numbers) > 0) {
         /*
          * rfc9147: section 4.
          *
@@ -1407,8 +1408,8 @@ MSG_PROCESS_RETURN dtls_process_ack(SSL_CONNECTION *s, PACKET *pkt)
         uint64_t epoch;
         uint64_t sequence_number;
 
-        if (!PACKET_get_net_8(&record_numbers, &epoch)
-            || !PACKET_get_net_8(&record_numbers, &sequence_number)) {
+        if (!CBS_get_u64(&record_numbers, &epoch)
+            || !CBS_get_u64(&record_numbers, &sequence_number)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_TOO_SHORT);
             return MSG_PROCESS_ERROR;
         }

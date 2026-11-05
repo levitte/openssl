@@ -178,7 +178,7 @@ static int test_dtls13_ack_length(int idx)
     unsigned char ack[2 + 16 + 1] = { 0 };
     size_t len = idx < 2 ? 2 : 18;
     int trailing = idx % 2;
-    PACKET pkt;
+    CBS pkt;
     int testresult = 0;
 
     ack[1] = (unsigned char)(len - 2);
@@ -187,9 +187,10 @@ static int test_dtls13_ack_length(int idx)
     if (!TEST_ptr(ctx = SSL_CTX_new(DTLS_method()))
         || !TEST_ptr(ssl = SSL_new(ctx))
         || !TEST_ptr(sc = SSL_CONNECTION_FROM_SSL(ssl))
-        || !TEST_true(PACKET_buf_init(&pkt, ack, len + trailing))
         || !TEST_ptr(wbio = BIO_new(BIO_s_mem())))
         goto end;
+
+    CBS_init(&pkt, ack, len + trailing);
 
     SSL_set0_wbio(ssl, wbio);
 

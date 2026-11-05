@@ -151,32 +151,32 @@ static int finish_msg(SSL *ssl, WPACKET *pkt, int mt, unsigned char **msg,
 static int get_ch_sessid_len(const CH_CONFIG *cfg, const unsigned char *msg,
     size_t msglen, size_t *sidlen)
 {
-    PACKET pkt = { 0 }, sessid = { 0 }, cookie = { 0 };
-    PACKET ciphers = { 0 }, comp = { 0 };
-    unsigned int legacy_version;
+    CBS pkt = { 0 }, sessid = { 0 }, cookie = { 0 };
+    CBS ciphers = { 0 }, comp = { 0 };
+    uint16_t legacy_version;
     size_t hl = hdr_len(cfg);
 
-    if (!TEST_size_t_gt(msglen, hl)
-        || !TEST_true(PACKET_buf_init(&pkt, msg + hl, msglen - hl)))
+    if (!TEST_size_t_gt(msglen, hl))
         return 0;
+    CBS_init(&pkt, msg + hl, msglen - hl);
 
-    if (!TEST_true(PACKET_get_net_2(&pkt, &legacy_version))
-        || !TEST_true(PACKET_forward(&pkt, SSL3_RANDOM_SIZE))
-        || !TEST_true(PACKET_get_length_prefixed_1(&pkt, &sessid)))
+    if (!TEST_true(CBS_get_u16(&pkt, &legacy_version))
+        || !TEST_true(CBS_skip(&pkt, SSL3_RANDOM_SIZE))
+        || !TEST_true(CBS_get_u8_length_prefixed(&pkt, &sessid)))
         return 0;
 
     if (cfg->is_dtls
-        && !TEST_true(PACKET_get_length_prefixed_1(&pkt, &cookie)))
+        && !TEST_true(CBS_get_u8_length_prefixed(&pkt, &cookie)))
         return 0;
 
     /* Sanity: cipher list non-empty, compression present and contains NULL. */
-    if (!TEST_true(PACKET_get_length_prefixed_2(&pkt, &ciphers))
-        || !TEST_size_t_gt(PACKET_remaining(&ciphers), 0)
-        || !TEST_true(PACKET_get_length_prefixed_1(&pkt, &comp))
-        || !TEST_size_t_gt(PACKET_remaining(&comp), 0))
+    if (!TEST_true(CBS_get_u16_length_prefixed(&pkt, &ciphers))
+        || !TEST_size_t_gt(CBS_len(&ciphers), 0)
+        || !TEST_true(CBS_get_u8_length_prefixed(&pkt, &comp))
+        || !TEST_size_t_gt(CBS_len(&comp), 0))
         return 0;
 
-    *sidlen = PACKET_remaining(&sessid);
+    *sidlen = CBS_len(&sessid);
     return 1;
 }
 
@@ -187,7 +187,7 @@ static int roundtrip_process_ch(const CH_CONFIG *cfg, const unsigned char *msg,
     SSL_CTX *sctx = NULL;
     SSL *ssl = NULL;
     SSL_CONNECTION *s;
-    PACKET pkt;
+    CBS pkt;
     int ret = 0;
 
     if (!TEST_ptr(sctx = new_ctx(cfg, server_method(cfg)))
@@ -198,9 +198,7 @@ static int roundtrip_process_ch(const CH_CONFIG *cfg, const unsigned char *msg,
         goto err;
     s = SSL_CONNECTION_FROM_SSL(ssl);
 
-    if (!TEST_true(PACKET_buf_init(&pkt, msg + hdr_len(cfg),
-            msglen - hdr_len(cfg))))
-        goto err;
+    CBS_init(&pkt, msg + hdr_len(cfg), msglen - hdr_len(cfg));
 
     if (!TEST_int_eq(tls_process_client_hello(s, &pkt),
             MSG_PROCESS_CONTINUE_PROCESSING))
@@ -615,7 +613,7 @@ static int test_construct_ch_ech(void)
     OSSL_ECHSTORE *es = NULL;
     OSSL_HPKE_SUITE suite = OSSL_HPKE_SUITE_DEFAULT;
     WPACKET pkt;
-    PACKET rpkt;
+    CBS rpkt;
     unsigned char *msg = NULL;
     size_t msglen = 0, sidlen = 0;
     int ret = 0;
@@ -648,9 +646,8 @@ static int test_construct_ch_ech(void)
         || !prime_ssl(sssl, 0, 0, NULL, SSL3_MT_CLIENT_HELLO))
         goto err;
     ss = SSL_CONNECTION_FROM_SSL(sssl);
-    if (!TEST_true(PACKET_buf_init(&rpkt, msg + hdr_len(&cfg),
-            msglen - hdr_len(&cfg)))
-        || !TEST_int_eq(tls_process_client_hello(ss, &rpkt),
+    CBS_init(&rpkt, msg + hdr_len(&cfg), msglen - hdr_len(&cfg));
+    if (!TEST_int_eq(tls_process_client_hello(ss, &rpkt),
             MSG_PROCESS_CONTINUE_PROCESSING))
         goto err;
 
@@ -1201,7 +1198,7 @@ static int prep_cke_rsa(SSL_CONNECTION *s)
 static int check_cke_rsa(SSL_CONNECTION *s, const unsigned char *body,
     size_t bodylen)
 {
-    PACKET pkt = { 0 }, enc = { 0 };
+    CBS pkt = { 0 }, enc = { 0 };
     EVP_PKEY *pkey = NULL;
     EVP_PKEY_CTX *pctx = NULL;
     unsigned char pms[256];
@@ -1209,10 +1206,10 @@ static int check_cke_rsa(SSL_CONNECTION *s, const unsigned char *body,
     int ret = 0;
 
     /* The 2048-bit server key gives a 256-byte encrypted premaster secret. */
-    if (!TEST_true(PACKET_buf_init(&pkt, body, bodylen))
-        || !TEST_true(PACKET_get_length_prefixed_2(&pkt, &enc))
-        || !TEST_size_t_eq(PACKET_remaining(&pkt), 0)
-        || !TEST_size_t_eq(PACKET_remaining(&enc), 256))
+    CBS_init(&pkt, body, bodylen);
+    if ( !TEST_true(CBS_get_u16_length_prefixed(&pkt, &enc))
+        || !TEST_size_t_eq(CBS_len(&pkt), 0)
+        || !TEST_size_t_eq(CBS_len(&enc), 256))
         return 0;
 
     /* Decrypt with the server key: must match the saved premaster secret. */
@@ -1220,7 +1217,7 @@ static int check_cke_rsa(SSL_CONNECTION *s, const unsigned char *body,
         || !TEST_ptr(pctx = EVP_PKEY_CTX_new_from_pkey(NULL, pkey, NULL))
         || !TEST_int_gt(EVP_PKEY_decrypt_init(pctx), 0)
         || !TEST_int_gt(EVP_PKEY_decrypt(pctx, pms, &pmslen,
-                            PACKET_data(&enc), PACKET_remaining(&enc)),
+                            CBS_data(&enc), CBS_len(&enc)),
             0)
         || !TEST_ptr(s->s3.tmp.pms)
         || !TEST_mem_eq(pms, pmslen, s->s3.tmp.pms, s->s3.tmp.pmslen))
@@ -1273,14 +1270,14 @@ static int prep_cke_ecdhe(SSL_CONNECTION *s)
 static int check_cke_ecdhe(SSL_CONNECTION *s, const unsigned char *body,
     size_t bodylen)
 {
-    PACKET pkt = { 0 }, point = { 0 };
+    CBS pkt = { 0 }, point = { 0 };
 
     /* An uncompressed P-256 point: format byte plus two 32-byte coords. */
-    if (!TEST_true(PACKET_buf_init(&pkt, body, bodylen))
-        || !TEST_true(PACKET_get_length_prefixed_1(&pkt, &point))
-        || !TEST_size_t_eq(PACKET_remaining(&pkt), 0)
-        || !TEST_size_t_eq(PACKET_remaining(&point), 65)
-        || !TEST_int_eq(PACKET_data(&point)[0], POINT_CONVERSION_UNCOMPRESSED))
+    CBS_init(&pkt, body, bodylen);
+    if ( !TEST_true(CBS_get_u8_length_prefixed(&pkt, &point))
+        || !TEST_size_t_eq(CBS_len(&pkt), 0)
+        || !TEST_size_t_eq(CBS_len(&point), 65)
+        || !TEST_int_eq(CBS_data(&point)[0], POINT_CONVERSION_UNCOMPRESSED))
         return 0;
     /* ssl_derive saved the x-coordinate as the premaster secret. */
     return TEST_ptr(s->s3.tmp.pms) && TEST_size_t_eq(s->s3.tmp.pmslen, 32);
@@ -1385,12 +1382,12 @@ err:
 static int check_cke_dhe(SSL_CONNECTION *s, const unsigned char *body,
     size_t bodylen)
 {
-    PACKET pkt = { 0 }, pub = { 0 };
+    CBS pkt = { 0 }, pub = { 0 };
 
-    if (!TEST_true(PACKET_buf_init(&pkt, body, bodylen))
-        || !TEST_true(PACKET_get_length_prefixed_2(&pkt, &pub))
-        || !TEST_size_t_eq(PACKET_remaining(&pkt), 0)
-        || !TEST_size_t_eq(PACKET_remaining(&pub), 256))
+    CBS_init(&pkt, body, bodylen);
+    if ( !TEST_true(CBS_get_u16_length_prefixed(&pkt, &pub))
+        || !TEST_size_t_eq(CBS_len(&pkt), 0)
+        || !TEST_size_t_eq(CBS_len(&pub), 256))
         return 0;
     /* ssl_derive saved the premaster secret. */
     return TEST_ptr(s->s3.tmp.pms) && TEST_size_t_gt(s->s3.tmp.pmslen, 0);
@@ -1434,12 +1431,12 @@ static int prep_cke_psk(SSL_CONNECTION *s)
 static int check_cke_psk(SSL_CONNECTION *s, const unsigned char *body,
     size_t bodylen)
 {
-    PACKET pkt = { 0 }, identity = { 0 };
+    CBS pkt = { 0 }, identity = { 0 };
 
-    if (!TEST_true(PACKET_buf_init(&pkt, body, bodylen))
-        || !TEST_true(PACKET_get_length_prefixed_2(&pkt, &identity))
-        || !TEST_size_t_eq(PACKET_remaining(&pkt), 0)
-        || !TEST_mem_eq(PACKET_data(&identity), PACKET_remaining(&identity),
+    CBS_init(&pkt, body, bodylen);
+    if ( !TEST_true(CBS_get_u16_length_prefixed(&pkt, &identity))
+        || !TEST_size_t_eq(CBS_len(&pkt), 0)
+        || !TEST_mem_eq(CBS_data(&identity), CBS_len(&identity),
             CKE_PSK_IDENTITY, strlen(CKE_PSK_IDENTITY)))
         return 0;
     return TEST_mem_eq(s->s3.tmp.psk, s->s3.tmp.psklen, cke_psk,

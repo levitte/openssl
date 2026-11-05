@@ -636,10 +636,12 @@ int DTLSv1_listen(SSL *ssl, BIO_ADDR *client)
     unsigned char *buf = NULL, *wbuf;
     size_t fragoff, fraglen, msglen;
     uint64_t record_sequence = 0;
-    unsigned int rectype, versmajor, versminor, msgseq, msgtype, clientvers, cookielen;
+    uint8_t rectype, versmajor, versminor, msgtype;
+    uint16_t msgseq, clientvers;
+    unsigned int cookielen;
     BIO *rbio, *wbio;
     BIO_ADDR *tmpclient = NULL;
-    PACKET pkt, msgpkt, msgpayload, session, cookiepkt;
+    CBS pkt, msgpkt, msgpayload, session, cookiepkt;
     SSL_CONNECTION *s = SSL_CONNECTION_FROM_SSL_ONLY(ssl);
 
     if (s == NULL)
@@ -733,11 +735,7 @@ int DTLSv1_listen(SSL *ssl, BIO_ADDR *client)
             goto end;
         }
 
-        if (!PACKET_buf_init(&pkt, buf, n)) {
-            ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
-            ret = -1;
-            goto end;
-        }
+        CBS_init(&pkt, buf, n);
 
         /*
          * Parse the received record. If there are any problems with it we just
@@ -755,9 +753,9 @@ int DTLSv1_listen(SSL *ssl, BIO_ADDR *client)
         }
 
         /* Get the record header */
-        if (!PACKET_get_1(&pkt, &rectype)
-            || !PACKET_get_1(&pkt, &versmajor)
-            || !PACKET_get_1(&pkt, &versminor)) {
+        if (!CBS_get_u8(&pkt, &rectype)
+            || !CBS_get_u8(&pkt, &versmajor)
+            || !CBS_get_u8(&pkt, &versminor)) {
             ERR_raise(ERR_LIB_SSL, SSL_R_LENGTH_MISMATCH);
             goto end;
         }
@@ -781,8 +779,8 @@ int DTLSv1_listen(SSL *ssl, BIO_ADDR *client)
         }
 
         /* Save the sequence number: 64 bits, with top 2 bytes = epoch */
-        if (!PACKET_copy_bytes(&pkt, seq, SEQ_NUM_SIZE)
-            || !PACKET_get_length_prefixed_2(&pkt, &msgpkt)) {
+        if (!CBS_copy_bytes(&pkt, seq, SEQ_NUM_SIZE)
+            || !CBS_get_u16_length_prefixed(&pkt, &msgpkt)) {
             ERR_raise(ERR_LIB_SSL, SSL_R_LENGTH_MISMATCH);
             goto end;
         }
@@ -804,18 +802,25 @@ int DTLSv1_listen(SSL *ssl, BIO_ADDR *client)
         record_sequence |= ((uint64_t)seq[7]);
 
         /* Get a pointer to the raw message for the later callback */
-        data = PACKET_data(&msgpkt);
+        data = CBS_data(&msgpkt);
 
         /* Finished processing the record header, now process the message */
-        if (!PACKET_get_1(&msgpkt, &msgtype)
-            || !PACKET_get_net_3_len(&msgpkt, &msglen)
-            || !PACKET_get_net_2(&msgpkt, &msgseq)
-            || !PACKET_get_net_3_len(&msgpkt, &fragoff)
-            || !PACKET_get_net_3_len(&msgpkt, &fraglen)
-            || !PACKET_get_sub_packet(&msgpkt, &msgpayload, fraglen)
-            || PACKET_remaining(&msgpkt) != 0) {
-            ERR_raise(ERR_LIB_SSL, SSL_R_LENGTH_MISMATCH);
-            goto end;
+        {
+            uint32_t msglen32, fragoff32, fraglen32;
+
+            if (!CBS_get_u8(&msgpkt, &msgtype)
+                || !CBS_get_u24(&msgpkt, &msglen32)
+                || !CBS_get_u16(&msgpkt, &msgseq)
+                || !CBS_get_u24(&msgpkt, &fragoff32)
+                || !CBS_get_u24(&msgpkt, &fraglen32)
+                || !CBS_get_bytes(&msgpkt, &msgpayload, fraglen32)
+                || CBS_len(&msgpkt) != 0) {
+                ERR_raise(ERR_LIB_SSL, SSL_R_LENGTH_MISMATCH);
+                goto end;
+            }
+            msglen = msglen32;
+            fragoff = fragoff32;
+            fraglen = fraglen32;
         }
 
         if (msgtype != SSL3_MT_CLIENT_HELLO) {
@@ -847,7 +852,7 @@ int DTLSv1_listen(SSL *ssl, BIO_ADDR *client)
                 fraglen + DTLS1_HM_HEADER_LENGTH, ssl,
                 s->msg_callback_arg);
 
-        if (!PACKET_get_net_2(&msgpayload, &clientvers)) {
+        if (!CBS_get_u16(&msgpayload, &clientvers)) {
             ERR_raise(ERR_LIB_SSL, SSL_R_LENGTH_MISMATCH);
             goto end;
         }
@@ -860,9 +865,9 @@ int DTLSv1_listen(SSL *ssl, BIO_ADDR *client)
             goto end;
         }
 
-        if (!PACKET_forward(&msgpayload, SSL3_RANDOM_SIZE)
-            || !PACKET_get_length_prefixed_1(&msgpayload, &session)
-            || !PACKET_get_length_prefixed_1(&msgpayload, &cookiepkt)) {
+        if (!CBS_skip(&msgpayload, SSL3_RANDOM_SIZE)
+            || !CBS_get_u8_length_prefixed(&msgpayload, &session)
+            || !CBS_get_u8_length_prefixed(&msgpayload, &cookiepkt)) {
             /*
              * Could be malformed or the cookie does not fit within the initial
              * ClientHello fragment. Either way we can't handle it.
@@ -875,7 +880,7 @@ int DTLSv1_listen(SSL *ssl, BIO_ADDR *client)
          * Check if we have a cookie or not. If not we need to send a
          * HelloVerifyRequest.
          */
-        if (PACKET_remaining(&cookiepkt) == 0) {
+        if (CBS_len(&cookiepkt) == 0) {
             next = LISTEN_SEND_VERIFY_REQUEST;
         } else {
             /*
@@ -887,8 +892,8 @@ int DTLSv1_listen(SSL *ssl, BIO_ADDR *client)
                 ret = -1;
                 goto end;
             }
-            if (ssl->ctx->app_verify_cookie_cb(ssl, PACKET_data(&cookiepkt),
-                    (unsigned int)PACKET_remaining(&cookiepkt))
+            if (ssl->ctx->app_verify_cookie_cb(ssl, CBS_data(&cookiepkt),
+                    (unsigned int)CBS_len(&cookiepkt))
                 == 0) {
                 /*
                  * We treat invalid cookies in the same was as no cookie as

@@ -367,10 +367,10 @@ int ossl_ech_2bcompressed(size_t ind);
 int ossl_ech_copy_inner2outer(SSL_CONNECTION *s, uint16_t ext_type, int ind,
     WPACKET *pkt);
 
-int ossl_ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid,
+int ossl_ech_get_ch_offsets(SSL_CONNECTION *s, CBS *pkt, size_t *sessid,
     size_t *exts, size_t *echoffset, uint16_t *echtype,
     int *inner, size_t *snioffset);
-int ossl_ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt);
+int ossl_ech_early_decrypt(SSL_CONNECTION *s, CBS *outerpkt, CBS *newpkt);
 void ossl_ech_status_print(BIO *out, SSL_CONNECTION *s, int selector);
 
 int ossl_ech_intbuf_add(SSL_CONNECTION *s, const unsigned char *buf,

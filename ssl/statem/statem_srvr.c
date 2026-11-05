@@ -36,6 +36,19 @@
 
 #define TICKET_NONCE_SIZE 8
 
+/* No CBS equivalent of PACKET_copy_all(); semantics preserved verbatim. */
+__owur static int cbs_copy_all(const CBS *cbs, unsigned char *dest,
+    size_t dest_len, size_t *len)
+{
+    if (CBS_len(cbs) > dest_len) {
+        *len = 0;
+        return 0;
+    }
+    *len = CBS_len(cbs);
+    memcpy(dest, CBS_data(cbs), *len);
+    return 1;
+}
+
 #ifndef OPENSSL_NO_ECH
 #include "../ech/ech_local.h"
 #endif
@@ -1555,7 +1568,7 @@ size_t ossl_statem_server_max_message_size(SSL_CONNECTION *s)
  * Process a message that the server has received from the client.
  */
 MSG_PROCESS_RETURN ossl_statem_server_process_message(SSL_CONNECTION *s,
-    PACKET *pkt)
+    CBS *pkt)
 {
     OSSL_STATEM *st = &s->statem;
 
@@ -1774,15 +1787,15 @@ static void ssl_check_for_safari(SSL_CONNECTION *s,
     };
     /* Length of the common prefix (first two extensions). */
     static const size_t kSafariCommonExtensionsLength = 18;
-    unsigned int type;
-    PACKET sni, tmppkt;
+    uint16_t type;
+    CBS sni, tmppkt;
     size_t ext_len;
 
     tmppkt = hello->extensions;
 
-    if (!PACKET_forward(&tmppkt, 2)
-        || !PACKET_get_net_2(&tmppkt, &type)
-        || !PACKET_get_length_prefixed_2(&tmppkt, &sni)) {
+    if (!CBS_skip(&tmppkt, 2)
+        || !CBS_get_u16(&tmppkt, &type)
+        || !CBS_get_u16_length_prefixed(&tmppkt, &sni)) {
         return;
     }
 
@@ -1795,7 +1808,7 @@ static void ssl_check_for_safari(SSL_CONNECTION *s,
         ? sizeof(kSafariExtensionsBlock)
         : kSafariCommonExtensionsLength;
 
-    s->s3.is_probably_safari = PACKET_equal(&tmppkt, kSafariExtensionsBlock,
+    s->s3.is_probably_safari = CBS_mem_equal(&tmppkt, kSafariExtensionsBlock,
         ext_len);
 }
 
@@ -1803,10 +1816,10 @@ static void ssl_check_for_safari(SSL_CONNECTION *s,
     ((options & SSL_OP_NO_RENEGOTIATION) == 0 \
         && (options & SSL_OP_ALLOW_CLIENT_RENEGOTIATION) != 0)
 
-MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
+MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, CBS *pkt)
 {
     /* |cookie| will only be initialized for DTLS. */
-    PACKET session_id, compression, extensions, cookie;
+    CBS session_id, compression, extensions, cookie;
     CLIENTHELLO_MSG *clienthello = NULL;
 
 #ifndef OPENSSL_NO_ECH
@@ -1820,7 +1833,7 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
      * the ServerHello.random (or ECH extension if HRR) to signal to the client
      * that ECH "worked."
      */
-    if (s->server && PACKET_remaining(pkt) != 0) {
+    if (s->server && CBS_len(pkt) != 0) {
         int rv = 0, innerflag = OSSL_ECH_UNKNOWN_CH_TYPE;
         size_t startofsessid = 0, startofexts = 0, echoffset = 0;
         size_t outersnioffset = 0; /* offset to SNI in outer */
@@ -1844,11 +1857,8 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
             s->ext.ech.backend = 1;
             s->ext.ech.attempted_type = TLSEXT_TYPE_ech;
             OPENSSL_free(s->ext.ech.innerch);
-            s->ext.ech.innerch_len = PACKET_remaining(pkt);
-            if (PACKET_peek_bytes(pkt, &pbuf, s->ext.ech.innerch_len) != 1) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
+            s->ext.ech.innerch_len = CBS_len(pkt);
+            pbuf = CBS_data(pkt);
             s->ext.ech.innerch_len += SSL3_HM_HEADER_LENGTH; /* 4 */
             s->ext.ech.innerch = OPENSSL_malloc(s->ext.ech.innerch_len);
             if (s->ext.ech.innerch == NULL) {
@@ -1875,7 +1885,7 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
                 goto err;
             }
         } else if (s->ext.ech.es != NULL) {
-            PACKET newpkt;
+            CBS newpkt;
             int secondtime = s->ext.ech.success;
 
             /*
@@ -1897,7 +1907,7 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
                  * space, which there better be! (a bug triggered a bigger
                  * inner CH once;-)
                  */
-                if (PACKET_remaining(&newpkt) > PACKET_remaining(pkt)) {
+                if (CBS_len(&newpkt) > CBS_len(pkt)) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                     goto err;
                 }
@@ -1938,16 +1948,17 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
     /*
      * First, parse the raw ClientHello data into the CLIENTHELLO_MSG structure.
      */
-    PACKET_null_init(&cookie);
+    CBS_init(&cookie, NULL, 0);
 
-    if (!PACKET_get_net_2(pkt, &clienthello->legacy_version)) {
+    clienthello->msg_start = CBS_data(pkt) - CBS_offset(pkt);
+    if (!CBS_get_u16(pkt, &clienthello->legacy_version)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_TOO_SHORT);
         goto err;
     }
 
-    if (!PACKET_copy_bytes(pkt, clienthello->random, SSL3_RANDOM_SIZE)
-        || !PACKET_get_length_prefixed_1(pkt, &session_id)
-        || !PACKET_copy_all(&session_id, clienthello->session_id,
+    if (!CBS_copy_bytes(pkt, clienthello->random, SSL3_RANDOM_SIZE)
+        || !CBS_get_u8_length_prefixed(pkt, &session_id)
+        || !cbs_copy_all(&session_id, clienthello->session_id,
             SSL_MAX_SSL_SESSION_ID_LENGTH,
             &clienthello->session_id_len)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
@@ -1957,11 +1968,11 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
     if (SSL_CONNECTION_IS_DTLS(s)) {
         int minversion, maxversion;
 
-        if (!PACKET_get_length_prefixed_1(pkt, &cookie)) {
+        if (!CBS_get_u8_length_prefixed(pkt, &cookie)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
             goto err;
         }
-        if (!PACKET_copy_all(&cookie, clienthello->dtls_cookie,
+        if (!cbs_copy_all(&cookie, clienthello->dtls_cookie,
                 sizeof(clienthello->dtls_cookie),
                 &clienthello->dtls_cookie_len)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -1987,35 +1998,35 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
         }
     }
 
-    if (!PACKET_get_length_prefixed_2(pkt, &clienthello->ciphersuites)) {
+    if (!CBS_get_u16_length_prefixed(pkt, &clienthello->ciphersuites)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
         goto err;
     }
 
-    if (!PACKET_get_length_prefixed_1(pkt, &compression)) {
+    if (!CBS_get_u8_length_prefixed(pkt, &compression)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
         goto err;
     }
 
     /* Could be empty. */
-    if (PACKET_remaining(pkt) == 0) {
-        PACKET_null_init(&clienthello->extensions);
+    if (CBS_len(pkt) == 0) {
+        CBS_init(&clienthello->extensions, NULL, 0);
     } else {
-        if (!PACKET_get_length_prefixed_2(pkt, &clienthello->extensions)
-            || PACKET_remaining(pkt) != 0) {
+        if (!CBS_get_u16_length_prefixed(pkt, &clienthello->extensions)
+            || CBS_len(pkt) != 0) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
             goto err;
         }
     }
 
-    if (!PACKET_copy_all(&compression, clienthello->compressions,
+    if (!cbs_copy_all(&compression, clienthello->compressions,
             MAX_COMPRESSIONS_SIZE,
             &clienthello->compressions_len)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
 
-    /* Preserve the raw extensions PACKET for later use */
+    /* Preserve the raw extensions CBS for later use */
     extensions = clienthello->extensions;
     if (!tls_collect_extensions(s, &extensions, SSL_EXT_CLIENT_HELLO,
             &clienthello->pre_proc_exts,
@@ -3457,18 +3468,18 @@ done:
     return CON_FUNC_SUCCESS;
 }
 
-static int tls_process_cke_psk_preamble(SSL_CONNECTION *s, PACKET *pkt)
+static int tls_process_cke_psk_preamble(SSL_CONNECTION *s, CBS *pkt)
 {
 #ifndef OPENSSL_NO_PSK
     unsigned char psk[PSK_MAX_PSK_LEN];
     size_t psklen;
-    PACKET psk_identity;
+    CBS psk_identity;
 
-    if (!PACKET_get_length_prefixed_2(pkt, &psk_identity)) {
+    if (!CBS_get_u16_length_prefixed(pkt, &psk_identity)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
         return 0;
     }
-    if (PACKET_remaining(&psk_identity) > PSK_MAX_IDENTITY_LEN) {
+    if (CBS_len(&psk_identity) > PSK_MAX_IDENTITY_LEN) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_DATA_LENGTH_TOO_LONG);
         return 0;
     }
@@ -3477,7 +3488,7 @@ static int tls_process_cke_psk_preamble(SSL_CONNECTION *s, PACKET *pkt)
         return 0;
     }
 
-    if (!PACKET_strndup(&psk_identity, &s->session->psk_identity)) {
+    if (!ossl_cbs_strndup(&psk_identity, &s->session->psk_identity)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -3517,10 +3528,10 @@ static int tls_process_cke_psk_preamble(SSL_CONNECTION *s, PACKET *pkt)
 #endif
 }
 
-static int tls_process_cke_rsa(SSL_CONNECTION *s, PACKET *pkt)
+static int tls_process_cke_rsa(SSL_CONNECTION *s, CBS *pkt)
 {
     size_t outlen;
-    PACKET enc_premaster;
+    CBS enc_premaster;
     EVP_PKEY *rsa = NULL;
     unsigned char *rsa_decrypt = NULL;
     int ret = 0;
@@ -3538,8 +3549,8 @@ static int tls_process_cke_rsa(SSL_CONNECTION *s, PACKET *pkt)
     if (s->version == DTLS1_BAD_VER) {
         enc_premaster = *pkt;
     } else {
-        if (!PACKET_get_length_prefixed_2(pkt, &enc_premaster)
-            || PACKET_remaining(pkt) != 0) {
+        if (!CBS_get_u16_length_prefixed(pkt, &enc_premaster)
+            || CBS_len(pkt) != 0) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
             return 0;
         }
@@ -3585,8 +3596,8 @@ static int tls_process_cke_rsa(SSL_CONNECTION *s, PACKET *pkt)
 
     if (!EVP_PKEY_CTX_set_params(ctx, params)
         || EVP_PKEY_decrypt(ctx, rsa_decrypt, &outlen,
-               PACKET_data(&enc_premaster),
-               PACKET_remaining(&enc_premaster))
+               CBS_data(&enc_premaster),
+               CBS_len(&enc_premaster))
             <= 0) {
         SSLfatal(s, SSL_AD_DECRYPT_ERROR, SSL_R_DECRYPTION_FAILED);
         goto err;
@@ -3615,15 +3626,15 @@ err:
     return ret;
 }
 
-static int tls_process_cke_dhe(SSL_CONNECTION *s, PACKET *pkt)
+static int tls_process_cke_dhe(SSL_CONNECTION *s, CBS *pkt)
 {
     EVP_PKEY *skey = NULL;
-    unsigned int i;
+    uint16_t i;
     const unsigned char *data;
     EVP_PKEY *ckey = NULL;
     int ret = 0;
 
-    if (!PACKET_get_net_2(pkt, &i) || PACKET_remaining(pkt) != i) {
+    if (!CBS_get_u16(pkt, &i) || CBS_len(pkt) != i) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_DH_PUBLIC_VALUE_LENGTH_IS_WRONG);
         goto err;
     }
@@ -3633,14 +3644,19 @@ static int tls_process_cke_dhe(SSL_CONNECTION *s, PACKET *pkt)
         goto err;
     }
 
-    if (PACKET_remaining(pkt) == 0L) {
+    if (CBS_len(pkt) == 0L) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_MISSING_TMP_DH_KEY);
         goto err;
     }
-    if (!PACKET_get_bytes(pkt, &data, i)) {
-        /* We already checked we have enough data */
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
+    {
+        CBS data_cbs;
+
+        if (!CBS_get_bytes(pkt, &data_cbs, i)) {
+            /* We already checked we have enough data */
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            goto err;
+        }
+        data = CBS_data(&data_cbs);
     }
     ckey = EVP_PKEY_new();
     if (ckey == NULL || EVP_PKEY_copy_parameters(ckey, skey) == 0) {
@@ -3666,19 +3682,20 @@ err:
     return ret;
 }
 
-static int tls_process_cke_ecdhe(SSL_CONNECTION *s, PACKET *pkt)
+static int tls_process_cke_ecdhe(SSL_CONNECTION *s, CBS *pkt)
 {
     EVP_PKEY *skey = s->s3.tmp.pkey;
     EVP_PKEY *ckey = NULL;
     int ret = 0;
 
-    if (PACKET_remaining(pkt) == 0L) {
+    if (CBS_len(pkt) == 0L) {
         /* We don't support ECDH client auth */
         SSLfatal(s, SSL_AD_HANDSHAKE_FAILURE, SSL_R_MISSING_TMP_ECDH_KEY);
         goto err;
     } else {
-        unsigned int i;
+        uint8_t i;
         const unsigned char *data;
+        CBS data_cbs;
 
         /*
          * Get client's public key from encoded point in the
@@ -3689,11 +3706,13 @@ static int tls_process_cke_ecdhe(SSL_CONNECTION *s, PACKET *pkt)
          * Get encoded point length
          * empty key should be handled here
          */
-        if (!PACKET_get_1(pkt, &i) || i == 0 || !PACKET_get_bytes(pkt, &data, i)
-            || PACKET_remaining(pkt) != 0) {
+        if (!CBS_get_u8(pkt, &i) || i == 0
+            || !CBS_get_bytes(pkt, &data_cbs, i)
+            || CBS_len(pkt) != 0) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
             goto err;
         }
+        data = CBS_data(&data_cbs);
         if (skey == NULL) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_MISSING_TMP_ECDH_KEY);
             goto err;
@@ -3725,17 +3744,19 @@ err:
     return ret;
 }
 
-static int tls_process_cke_srp(SSL_CONNECTION *s, PACKET *pkt)
+static int tls_process_cke_srp(SSL_CONNECTION *s, CBS *pkt)
 {
 #ifndef OPENSSL_NO_SRP
-    unsigned int i;
+    uint16_t i;
     const unsigned char *data;
+    CBS data_cbs;
 
-    if (!PACKET_get_net_2(pkt, &i)
-        || !PACKET_get_bytes(pkt, &data, i)) {
+    if (!CBS_get_u16(pkt, &i)
+        || !CBS_get_bytes(pkt, &data_cbs, i)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_SRP_A_LENGTH);
         return 0;
     }
+    data = CBS_data(&data_cbs);
     if ((s->srp_ctx.A = BN_bin2bn(data, i, NULL)) == NULL) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_BN_LIB);
         return 0;
@@ -3764,7 +3785,7 @@ static int tls_process_cke_srp(SSL_CONNECTION *s, PACKET *pkt)
 #endif
 }
 
-static int tls_process_cke_gost(SSL_CONNECTION *s, PACKET *pkt)
+static int tls_process_cke_gost(SSL_CONNECTION *s, CBS *pkt)
 {
 #ifndef OPENSSL_NO_GOST
     EVP_PKEY_CTX *pkey_ctx;
@@ -3817,10 +3838,10 @@ static int tls_process_cke_gost(SSL_CONNECTION *s, PACKET *pkt)
             ERR_clear_error();
     }
 
-    ptr = PACKET_data(pkt);
+    ptr = CBS_data(pkt);
     /* Some implementations provide extra data in the opaqueBlob
      * We have nothing to do with this blob so we just skip it */
-    pKX = d2i_GOST_KX_MESSAGE(NULL, &ptr, (long)PACKET_remaining(pkt));
+    pKX = d2i_GOST_KX_MESSAGE(NULL, &ptr, (long)CBS_len(pkt));
     if (pKX == NULL
         || pKX->kxBlob == NULL
         || ASN1_TYPE_get(pKX->kxBlob) != V_ASN1_SEQUENCE) {
@@ -3828,12 +3849,12 @@ static int tls_process_cke_gost(SSL_CONNECTION *s, PACKET *pkt)
         goto err;
     }
 
-    if (!PACKET_forward(pkt, ptr - PACKET_data(pkt))) {
+    if (!CBS_skip(pkt, ptr - CBS_data(pkt))) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_DECRYPTION_FAILED);
         goto err;
     }
 
-    if (PACKET_remaining(pkt) != 0) {
+    if (CBS_len(pkt) != 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_DECRYPTION_FAILED);
         goto err;
     }
@@ -3873,7 +3894,7 @@ err:
 #endif
 }
 
-static int tls_process_cke_gost18(SSL_CONNECTION *s, PACKET *pkt)
+static int tls_process_cke_gost18(SSL_CONNECTION *s, CBS *pkt)
 {
 #ifndef OPENSSL_NO_GOST
     unsigned char rnd_dgst[32];
@@ -3926,8 +3947,8 @@ static int tls_process_cke_gost18(SSL_CONNECTION *s, PACKET *pkt)
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_LIBRARY_BUG);
         goto err;
     }
-    inlen = PACKET_remaining(pkt);
-    start = PACKET_data(pkt);
+    inlen = CBS_len(pkt);
+    start = CBS_data(pkt);
 
     if (EVP_PKEY_decrypt(pkey_ctx, premaster_secret, &outlen, start, inlen) <= 0) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_DECRYPTION_FAILED);
@@ -3951,7 +3972,7 @@ err:
 }
 
 MSG_PROCESS_RETURN tls_process_client_key_exchange(SSL_CONNECTION *s,
-    PACKET *pkt)
+    CBS *pkt)
 {
     unsigned long alg_k;
 
@@ -3965,7 +3986,7 @@ MSG_PROCESS_RETURN tls_process_client_key_exchange(SSL_CONNECTION *s,
 
     if (alg_k & SSL_kPSK) {
         /* Identity extracted earlier: should be nothing left */
-        if (PACKET_remaining(pkt) != 0) {
+        if (CBS_len(pkt) != 0) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
             goto err;
         }
@@ -4115,7 +4136,7 @@ static void tls_clear_client_verification_state(SSL_CONNECTION *sc, long verify_
     sc->verify_result = verify_result;
 }
 
-MSG_PROCESS_RETURN tls_process_client_rpk(SSL_CONNECTION *sc, PACKET *pkt)
+MSG_PROCESS_RETURN tls_process_client_rpk(SSL_CONNECTION *sc, CBS *pkt)
 {
     EVP_PKEY *peer_rpk = NULL;
 
@@ -4223,14 +4244,14 @@ err:
 }
 
 MSG_PROCESS_RETURN tls_process_client_certificate(SSL_CONNECTION *s,
-    PACKET *pkt)
+    CBS *pkt)
 {
     MSG_PROCESS_RETURN ret = MSG_PROCESS_ERROR;
     X509 *x = NULL;
-    unsigned long l;
+    uint32_t l;
     const unsigned char *certstart, *certbytes;
     STACK_OF(X509) *sk = NULL;
-    PACKET spkt, context;
+    CBS spkt, context;
     size_t chainidx;
     SSL_CTX *sctx = SSL_CONNECTION_GET_CTX(s);
 
@@ -4256,27 +4277,30 @@ MSG_PROCESS_RETURN tls_process_client_certificate(SSL_CONNECTION *s,
     }
 
     if (SSL_CONNECTION_IS_VERSION13(s)
-        && (!PACKET_get_length_prefixed_1(pkt, &context)
-            || (s->pha_context == NULL && PACKET_remaining(&context) != 0)
+        && (!CBS_get_u8_length_prefixed(pkt, &context)
+            || (s->pha_context == NULL && CBS_len(&context) != 0)
             || (s->pha_context != NULL
-                && !PACKET_equal(&context, s->pha_context,
+                && !CBS_mem_equal(&context, s->pha_context,
                     s->pha_context_len)))) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_INVALID_CONTEXT);
         goto err;
     }
 
-    if (!PACKET_get_length_prefixed_3(pkt, &spkt)
-        || PACKET_remaining(pkt) != 0) {
+    if (!CBS_get_u24_length_prefixed(pkt, &spkt)
+        || CBS_len(pkt) != 0) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
         goto err;
     }
 
-    for (chainidx = 0; PACKET_remaining(&spkt) > 0; chainidx++) {
-        if (!PACKET_get_net_3(&spkt, &l)
-            || !PACKET_get_bytes(&spkt, &certbytes, l)) {
+    for (chainidx = 0; CBS_len(&spkt) > 0; chainidx++) {
+        CBS cert_cbs;
+
+        if (!CBS_get_u24(&spkt, &l)
+            || !CBS_get_bytes(&spkt, &cert_cbs, l)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_CERT_LENGTH_MISMATCH);
             goto err;
         }
+        certbytes = CBS_data(&cert_cbs);
 
         certstart = certbytes;
         x = X509_new_ex(sctx->libctx, sctx->propq);
@@ -4296,9 +4320,9 @@ MSG_PROCESS_RETURN tls_process_client_certificate(SSL_CONNECTION *s,
 
         if (SSL_CONNECTION_IS_VERSION13(s)) {
             RAW_EXTENSION *rawexts = NULL;
-            PACKET extensions;
+            CBS extensions;
 
-            if (!PACKET_get_length_prefixed_2(&spkt, &extensions)) {
+            if (!CBS_get_u16_length_prefixed(&spkt, &extensions)) {
                 SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_LENGTH);
                 goto err;
             }
@@ -4307,7 +4331,7 @@ MSG_PROCESS_RETURN tls_process_client_certificate(SSL_CONNECTION *s,
                     NULL, chainidx == 0)
                 || !tls_parse_all_extensions(s, SSL_EXT_TLS1_3_CERTIFICATE,
                     rawexts, x, chainidx,
-                    PACKET_remaining(&spkt) == 0)) {
+                    CBS_len(&spkt) == 0)) {
                 OPENSSL_free(rawexts);
                 goto err;
             }
@@ -4460,10 +4484,10 @@ err:
 }
 
 #ifndef OPENSSL_NO_COMP_ALG
-MSG_PROCESS_RETURN tls_process_client_compressed_certificate(SSL_CONNECTION *sc, PACKET *pkt)
+MSG_PROCESS_RETURN tls_process_client_compressed_certificate(SSL_CONNECTION *sc, CBS *pkt)
 {
     MSG_PROCESS_RETURN ret = MSG_PROCESS_ERROR;
-    PACKET tmppkt;
+    CBS tmppkt;
     BUF_MEM *buf = BUF_MEM_new();
 
     if (tls13_process_compressed_certificate(sc, pkt, &tmppkt, buf) != MSG_PROCESS_ERROR)
@@ -5014,9 +5038,9 @@ CON_FUNC_RETURN tls_construct_cert_status(SSL_CONNECTION *s, WPACKET *pkt)
  * tls_process_next_proto reads a Next Protocol Negotiation handshake message.
  * It sets the next_proto member in s if found
  */
-MSG_PROCESS_RETURN tls_process_next_proto(SSL_CONNECTION *s, PACKET *pkt)
+MSG_PROCESS_RETURN tls_process_next_proto(SSL_CONNECTION *s, CBS *pkt)
 {
-    PACKET next_proto, padding;
+    CBS next_proto, padding;
     size_t next_proto_len;
 
     /*-
@@ -5026,14 +5050,14 @@ MSG_PROCESS_RETURN tls_process_next_proto(SSL_CONNECTION *s, PACKET *pkt)
      *   uint8 padding_len;
      *   uint8 padding[padding_len];
      */
-    if (!PACKET_get_length_prefixed_1(pkt, &next_proto)
-        || !PACKET_get_length_prefixed_1(pkt, &padding)
-        || PACKET_remaining(pkt) > 0) {
+    if (!CBS_get_u8_length_prefixed(pkt, &next_proto)
+        || !CBS_get_u8_length_prefixed(pkt, &padding)
+        || CBS_len(pkt) > 0) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
         return MSG_PROCESS_ERROR;
     }
 
-    if (!PACKET_memdup(&next_proto, &s->ext.npn, &next_proto_len)) {
+    if (!ossl_cbs_memdup(&next_proto, &s->ext.npn, &next_proto_len)) {
         s->ext.npn_len = 0;
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return MSG_PROCESS_ERROR;
@@ -5057,9 +5081,9 @@ static CON_FUNC_RETURN tls_construct_encrypted_extensions(SSL_CONNECTION *s,
     return CON_FUNC_SUCCESS;
 }
 
-MSG_PROCESS_RETURN tls_process_end_of_early_data(SSL_CONNECTION *s, PACKET *pkt)
+MSG_PROCESS_RETURN tls_process_end_of_early_data(SSL_CONNECTION *s, CBS *pkt)
 {
-    if (PACKET_remaining(pkt) != 0) {
+    if (CBS_len(pkt) != 0) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
         return MSG_PROCESS_ERROR;
     }

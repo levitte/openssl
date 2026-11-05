@@ -79,7 +79,7 @@ static EXT_RETURN tls_construct_certificate_authorities(SSL_CONNECTION *s,
     unsigned int context,
     X509 *x,
     size_t chainidx);
-static int tls_parse_certificate_authorities(SSL_CONNECTION *s, PACKET *pkt,
+static int tls_parse_certificate_authorities(SSL_CONNECTION *s, CBS *pkt,
     unsigned int context, X509 *x,
     size_t chainidx);
 #ifndef OPENSSL_NO_SRP
@@ -106,10 +106,10 @@ static int tls_init_compress_certificate(SSL_CONNECTION *sc, unsigned int contex
 static EXT_RETURN tls_construct_compress_certificate(SSL_CONNECTION *sc, WPACKET *pkt,
     unsigned int context,
     X509 *x, size_t chainidx);
-static int tls_parse_compress_certificate(SSL_CONNECTION *sc, PACKET *pkt,
+static int tls_parse_compress_certificate(SSL_CONNECTION *sc, CBS *pkt,
     unsigned int context,
     X509 *x, size_t chainidx);
-static int tls_parse_ec_pt_formats(SSL_CONNECTION *s, PACKET *pkt,
+static int tls_parse_ec_pt_formats(SSL_CONNECTION *s, CBS *pkt,
     unsigned int context,
     X509 *x, size_t chainidx);
 
@@ -133,10 +133,10 @@ typedef struct extensions_definition_st {
      */
     int (*init)(SSL_CONNECTION *s, unsigned int context);
     /* Parse extension sent from client to server */
-    int (*parse_ctos)(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
+    int (*parse_ctos)(SSL_CONNECTION *s, CBS *pkt, unsigned int context,
         X509 *x, size_t chainidx);
     /* Parse extension send from server to client */
-    int (*parse_stoc)(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
+    int (*parse_stoc)(SSL_CONNECTION *s, CBS *pkt, unsigned int context,
         X509 *x, size_t chainidx);
     /* Construct extension sent from server to client */
     EXT_RETURN (*construct_stoc)(SSL_CONNECTION *s, WPACKET *pkt,
@@ -513,11 +513,11 @@ int ossl_ech_copy_inner2outer(SSL_CONNECTION *s, uint16_t ext_type,
     /*
      * copy inner value to outer
      */
-    if (PACKET_data(&myext->data) != NULL
-        && PACKET_remaining(&myext->data) > 0) {
+    if (CBS_data(&myext->data) != NULL
+        && CBS_len(&myext->data) > 0) {
         if (!WPACKET_put_bytes_u16(pkt, ext_type)
-            || !WPACKET_sub_memcpy_u16(pkt, PACKET_data(&myext->data),
-                PACKET_remaining(&myext->data)))
+            || !WPACKET_sub_memcpy_u16(pkt, CBS_data(&myext->data),
+                CBS_len(&myext->data)))
             return OSSL_ECH_SAME_EXT_ERR;
     } else {
         /* empty extension */
@@ -755,18 +755,18 @@ static int verify_extension(SSL_CONNECTION *s, unsigned int context,
  * deferred to tls_construct_stoc_ec_pt_formats(), the first point at
  * which s->s3.tmp.new_cipher is set for TLS 1.2.
  */
-static int tls_parse_ec_pt_formats(SSL_CONNECTION *s, PACKET *pkt,
+static int tls_parse_ec_pt_formats(SSL_CONNECTION *s, CBS *pkt,
     unsigned int context, X509 *x, size_t chainidx)
 {
-    PACKET list;
+    CBS list;
 
-    if (!PACKET_as_length_prefixed_1(pkt, &list)
-        || PACKET_remaining(&list) == 0) {
+    if (!CBS_get_u8_length_prefixed(pkt, &list) || CBS_len(pkt) != 0
+        || CBS_len(&list) == 0) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
     if (!s->hit
-        && !PACKET_memdup(&list, &s->ext.peer_ecpointformats,
+        && !ossl_cbs_memdup(&list, &s->ext.peer_ecpointformats,
             &s->ext.peer_ecpointformats_len)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -777,9 +777,9 @@ static int tls_parse_ec_pt_formats(SSL_CONNECTION *s, PACKET *pkt,
         unsigned long alg_a = s->s3.tmp.new_cipher->algorithm_auth;
 
         if (((alg_k & SSL_kECDHE) || (alg_a & SSL_aECDSA))
-            && memchr(PACKET_data(&list),
+            && memchr(CBS_data(&list),
                    TLSEXT_ECPOINTFORMAT_uncompressed,
-                   PACKET_remaining(&list))
+                   CBS_len(&list))
                 == NULL) {
             SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER,
                 SSL_R_TLS_INVALID_ECPOINTFORMAT_LIST);
@@ -795,10 +795,10 @@ static int tls_parse_ec_pt_formats(SSL_CONNECTION *s, PACKET *pkt,
  * extension types. This is used for TLS 1.3 server extension responses where
  * unknown extensions are not ignored.
  */
-int tls_validate_no_unknown_extensions(SSL_CONNECTION *s, PACKET *packet,
+int tls_validate_no_unknown_extensions(SSL_CONNECTION *s, CBS *packet,
     unsigned int context)
 {
-    PACKET extensions = *packet;
+    CBS extensions = *packet;
     custom_ext_methods *exts = &s->cert->custext;
     ENDPOINT role = ENDPOINT_BOTH;
 
@@ -815,14 +815,14 @@ int tls_validate_no_unknown_extensions(SSL_CONNECTION *s, PACKET *packet,
         role = ENDPOINT_CLIENT;
     }
 
-    while (PACKET_remaining(&extensions) > 0) {
-        unsigned int type;
+    while (CBS_len(&extensions) > 0) {
+        uint16_t type;
         size_t i;
-        PACKET extension;
+        CBS extension;
         const EXTENSION_DEFINITION *thisext;
 
-        if (!PACKET_get_net_2(&extensions, &type)
-            || !PACKET_get_length_prefixed_2(&extensions, &extension)) {
+        if (!CBS_get_u16(&extensions, &type)
+            || !CBS_get_u16_length_prefixed(&extensions, &extension)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             return 0;
         }
@@ -900,11 +900,11 @@ int extension_is_relevant(SSL_CONNECTION *s, unsigned int extctx,
  * found, or an internal error occurred. We only check duplicates for
  * extensions that we know about. We ignore others.
  */
-int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
+int tls_collect_extensions(SSL_CONNECTION *s, CBS *packet,
     unsigned int context,
     RAW_EXTENSION **res, size_t *len, int init)
 {
-    PACKET extensions = *packet;
+    CBS extensions = *packet;
     size_t i = 0;
     size_t num_exts;
     custom_ext_methods *exts = &s->cert->custext;
@@ -933,12 +933,13 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
     }
 
     i = 0;
-    while (PACKET_remaining(&extensions) > 0) {
-        unsigned int type, idx;
-        PACKET extension;
+    while (CBS_len(&extensions) > 0) {
+        uint16_t type;
+        unsigned int idx;
+        CBS extension;
         RAW_EXTENSION *thisex;
 
-        if (!PACKET_get_net_2(&extensions, &type) || !PACKET_get_length_prefixed_2(&extensions, &extension)) {
+        if (!CBS_get_u16(&extensions, &type) || !CBS_get_u16_length_prefixed(&extensions, &extension)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
@@ -951,7 +952,7 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
             || (thisex != NULL && thisex->present == 1)
             || (type == TLSEXT_TYPE_psk
                 && (context & SSL_EXT_CLIENT_HELLO) != 0
-                && PACKET_remaining(&extensions) != 0)) {
+                && CBS_len(&extensions) != 0)) {
             SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_EXTENSION);
             goto err;
         }
@@ -995,8 +996,8 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
         thisex->received_order = i++;
         if (s->ext.debug_cb)
             s->ext.debug_cb(SSL_CONNECTION_GET_USER_SSL(s), !s->server,
-                thisex->type, PACKET_data(&thisex->data),
-                (int)PACKET_remaining(&thisex->data),
+                thisex->type, CBS_data(&thisex->data),
+                (int)CBS_len(&thisex->data),
                 s->ext.debug_arg);
     }
 
@@ -1040,7 +1041,7 @@ int tls_parse_extension(SSL_CONNECTION *s, TLSEXT_INDEX idx, int context,
     RAW_EXTENSION *exts, X509 *x, size_t chainidx)
 {
     RAW_EXTENSION *currext = &exts[idx];
-    int (*parser)(SSL_CONNECTION *s, PACKET *pkt, unsigned int context, X509 *x,
+    int (*parser)(SSL_CONNECTION *s, CBS *pkt, unsigned int context, X509 *x,
         size_t chainidx)
         = NULL;
 
@@ -1075,8 +1076,8 @@ int tls_parse_extension(SSL_CONNECTION *s, TLSEXT_INDEX idx, int context,
 
     /* Parse custom extensions */
     return custom_ext_parse(s, context, currext->type,
-        PACKET_data(&currext->data),
-        PACKET_remaining(&currext->data),
+        CBS_data(&currext->data),
+        CBS_len(&currext->data),
         x, chainidx);
 }
 
@@ -1653,13 +1654,13 @@ static EXT_RETURN tls_construct_certificate_authorities(SSL_CONNECTION *s,
     return EXT_RETURN_SENT;
 }
 
-static int tls_parse_certificate_authorities(SSL_CONNECTION *s, PACKET *pkt,
+static int tls_parse_certificate_authorities(SSL_CONNECTION *s, CBS *pkt,
     unsigned int context, X509 *x,
     size_t chainidx)
 {
     if (!parse_ca_names(s, pkt))
         return 0;
-    if (PACKET_remaining(pkt) != 0) {
+    if (CBS_len(pkt) != 0) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
@@ -2001,8 +2002,8 @@ int tls_psk_do_binder(SSL_CONNECTION *s, const EVP_MD *md,
 #endif
 
         if (s->negotiated_version == DTLS1_3_VERSION) {
-            PACKET hashprefix, msg;
-            unsigned long dtlsbodylen;
+            CBS hashprefix, msg;
+            uint32_t dtlsbodylen;
             unsigned int dtls_offset = DTLS1_HM_HEADER_LENGTH - SSL3_HM_HEADER_LENGTH;
 
             /*
@@ -2015,16 +2016,16 @@ int tls_psk_do_binder(SSL_CONNECTION *s, const EVP_MD *md,
              * removed. Therefore for both the server and client we will
              * need to not supply them to the Digest Update
              */
-            if (!PACKET_buf_init(&hashprefix, hdata, hdatalen)
-                || !PACKET_forward(&hashprefix, 1)
-                || !PACKET_get_length_prefixed_3(&hashprefix, &msg)
-                || !PACKET_forward(&hashprefix, 1)
-                || !PACKET_get_net_3(&hashprefix, &dtlsbodylen)) {
+            CBS_init(&hashprefix, hdata, hdatalen);
+            if (!CBS_skip(&hashprefix, 1)
+                || !CBS_get_u24_length_prefixed(&hashprefix, &msg)
+                || !CBS_skip(&hashprefix, 1)
+                || !CBS_get_u24(&hashprefix, &dtlsbodylen)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
 
-            hdatalen -= PACKET_remaining(&hashprefix);
+            hdatalen -= CBS_len(&hashprefix);
 
             if (EVP_DigestUpdate(mctx, hdata, hdatalen) <= 0) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
@@ -2045,18 +2046,18 @@ int tls_psk_do_binder(SSL_CONNECTION *s, const EVP_MD *md,
              * ClientHello - which we don't want - so we need to take that bit off.
              */
             if (s->server) {
-                PACKET hashprefix, msg;
+                CBS hashprefix, msg;
 
                 /* Find how many bytes are left after the first two messages */
-                if (!PACKET_buf_init(&hashprefix, hdata, hdatalen)
-                    || !PACKET_forward(&hashprefix, 1)
-                    || !PACKET_get_length_prefixed_3(&hashprefix, &msg)
-                    || !PACKET_forward(&hashprefix, 1)
-                    || !PACKET_get_length_prefixed_3(&hashprefix, &msg)) {
+                CBS_init(&hashprefix, hdata, hdatalen);
+                if (!CBS_skip(&hashprefix, 1)
+                    || !CBS_get_u24_length_prefixed(&hashprefix, &msg)
+                    || !CBS_skip(&hashprefix, 1)
+                    || !CBS_get_u24_length_prefixed(&hashprefix, &msg)) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                     goto err;
                 }
-                hdatalen -= PACKET_remaining(&hashprefix);
+                hdatalen -= CBS_len(&hashprefix);
             }
 
             if (EVP_DigestUpdate(mctx, hdata, hdatalen) <= 0) {
@@ -2301,11 +2302,11 @@ static int tls_comp_in_pref(SSL_CONNECTION *sc, int alg)
 }
 #endif
 
-int tls_parse_compress_certificate(SSL_CONNECTION *sc, PACKET *pkt, unsigned int context,
+int tls_parse_compress_certificate(SSL_CONNECTION *sc, CBS *pkt, unsigned int context,
     X509 *x, size_t chainidx)
 {
 #ifndef OPENSSL_NO_COMP_ALG
-    PACKET supported_comp_algs;
+    CBS supported_comp_algs;
     unsigned int comp;
     int already_set[TLSEXT_comp_cert_limit];
     int j = 0;
@@ -2324,8 +2325,8 @@ int tls_parse_compress_certificate(SSL_CONNECTION *sc, PACKET *pkt, unsigned int
     if ((sc->options & SSL_OP_NO_TX_CERTIFICATE_COMPRESSION) != 0)
         return 1;
 
-    if (!PACKET_as_length_prefixed_1(pkt, &supported_comp_algs)
-        || PACKET_remaining(&supported_comp_algs) == 0) {
+    if (!CBS_get_u8_length_prefixed(pkt, &supported_comp_algs) || CBS_len(pkt) != 0
+        || CBS_len(&supported_comp_algs) == 0) {
         SSLfatal(sc, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
@@ -2337,13 +2338,13 @@ int tls_parse_compress_certificate(SSL_CONNECTION *sc, PACKET *pkt, unsigned int
      * The array is 0 (i.e. "none") terminated
      * The preference list only contains supported algorithms
      */
-    while (PACKET_get_net_2(&supported_comp_algs, &comp)) {
+    while (CBS_get_u16(&supported_comp_algs, &comp)) {
         if (tls_comp_in_pref(sc, comp) && !already_set[comp]) {
             sc->ext.compress_certificate_from_peer[j++] = comp;
             already_set[comp] = 1;
         }
     }
-    if (PACKET_remaining(&supported_comp_algs) != 0) {
+    if (CBS_len(&supported_comp_algs) != 0) {
         SSLfatal(sc, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }

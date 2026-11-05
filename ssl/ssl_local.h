@@ -30,6 +30,7 @@
 #include "internal/recordmethod.h"
 #include "internal/statem.h"
 #include "internal/packet.h"
+#include "internal/bytestring.h"
 #include "internal/dane.h"
 #include "internal/refcount.h"
 #include "internal/tlssigalgs.h"
@@ -699,7 +700,7 @@ typedef enum {
 
 typedef struct raw_extension_st {
     /* Raw packet data for the extension */
-    PACKET data;
+    CBS data;
     /* Set to 1 if the extension is present or 0 otherwise */
     int present;
     /* Set to 1 if we have already parsed the extension or 0 otherwise */
@@ -711,18 +712,24 @@ typedef struct raw_extension_st {
 } RAW_EXTENSION;
 
 typedef struct {
-    unsigned int legacy_version;
+    uint16_t legacy_version;
     unsigned char random[SSL3_RANDOM_SIZE];
     size_t session_id_len;
     unsigned char session_id[SSL_MAX_SSL_SESSION_ID_LENGTH];
     size_t dtls_cookie_len;
     unsigned char dtls_cookie[DTLS1_COOKIE_LENGTH];
-    PACKET ciphersuites;
+    CBS ciphersuites;
     size_t compressions_len;
     unsigned char compressions[MAX_COMPRESSIONS_SIZE];
-    PACKET extensions;
+    CBS extensions;
     size_t pre_proc_exts_len;
     RAW_EXTENSION *pre_proc_exts;
+    /*
+     * Start of the buffer the ClientHello was read from.  PACKET used to
+     * track this implicitly (PACKET_msg_start()); a CBS does not, so it is
+     * carried here for the PSK binder calculation.
+     */
+    const unsigned char *msg_start;
 } CLIENTHELLO_MSG;
 
 /*
@@ -2222,6 +2229,39 @@ typedef struct dtls_sent_msg_st {
 
 int dtls_any_sent_messages_are_missing_acknowledge(SSL_CONNECTION *s);
 
+/*
+ * PACKET-to-CBS gap fillers: PACKET_memdup() and PACKET_strndup() have no
+ * CBS equivalents (CBS_stow() allocates even for empty input, and neither
+ * frees the destination first).
+ */
+__owur static ossl_inline int ossl_cbs_memdup(const CBS *cbs,
+    unsigned char **data, size_t *len)
+{
+    size_t length;
+
+    OPENSSL_free(*data);
+    *data = NULL;
+    *len = 0;
+
+    length = CBS_len(cbs);
+    if (length == 0)
+        return 1;
+
+    *data = OPENSSL_memdup(CBS_data(cbs), length);
+    if (*data == NULL)
+        return 0;
+    *len = length;
+    return 1;
+}
+
+__owur static ossl_inline int ossl_cbs_strndup(const CBS *cbs, char **data)
+{
+    OPENSSL_free(*data);
+
+    *data = OPENSSL_strndup((const char *)CBS_data(cbs), CBS_len(cbs));
+    return (*data != NULL);
+}
+
 static ossl_inline int dtls_msg_needs_ack(int sentbyserver, unsigned char msgtype)
 {
     switch (msgtype) {
@@ -2949,8 +2989,8 @@ __owur STACK_OF(SSL_CIPHER) *ssl_create_cipher_list(SSL_CTX *ctx,
     STACK_OF(SSL_CIPHER) **cipher_list_by_id,
     const char *rule_str,
     CERT *c);
-__owur int ssl_cache_cipherlist(SSL_CONNECTION *s, PACKET *cipher_suites);
-__owur int ossl_bytes_to_cipher_list(SSL_CONNECTION *s, PACKET *cipher_suites,
+__owur int ssl_cache_cipherlist(SSL_CONNECTION *s, CBS *cipher_suites);
+__owur int ossl_bytes_to_cipher_list(SSL_CONNECTION *s, CBS *cipher_suites,
     STACK_OF(SSL_CIPHER) **skp,
     STACK_OF(SSL_CIPHER) **scsvs,
     int fatal);
@@ -3370,8 +3410,8 @@ int tls_choose_sigalg(SSL_CONNECTION *s, int fatalerrs);
 __owur long ssl_get_algorithm2(SSL_CONNECTION *s);
 __owur int tls12_copy_sigalgs(SSL_CONNECTION *s, WPACKET *pkt,
     const uint16_t *psig, size_t psiglen);
-__owur int tls1_save_u16(PACKET *pkt, uint16_t **pdest, size_t *pdestlen, size_t maxnum);
-__owur int tls1_save_sigalgs(SSL_CONNECTION *s, PACKET *pkt, int cert);
+__owur int tls1_save_u16(CBS *pkt, uint16_t **pdest, size_t *pdestlen, size_t maxnum);
+__owur int tls1_save_sigalgs(SSL_CONNECTION *s, CBS *pkt, int cert);
 __owur int tls1_process_sigalgs(SSL_CONNECTION *s);
 __owur int tls1_set_peer_legacy_sigalg(SSL_CONNECTION *s, const EVP_PKEY *pkey);
 __owur int tls1_lookup_md(SSL_CTX *ctx, const SIGALG_LOOKUP *lu,

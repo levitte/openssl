@@ -524,8 +524,8 @@ int ossl_ech_encode_inner(SSL_CONNECTION *s, unsigned char **encoded,
         if (raws[ind].present == 0 || ossl_ech_2bcompressed((int)ind) == 1)
             continue;
         if (!WPACKET_put_bytes_u16(&inner, raws[ind].type)
-            || !WPACKET_sub_memcpy_u16(&inner, PACKET_data(&raws[ind].data),
-                PACKET_remaining(&raws[ind].data))) {
+            || !WPACKET_sub_memcpy_u16(&inner, CBS_data(&raws[ind].data),
+                CBS_len(&raws[ind].data))) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             goto err;
         }
@@ -853,8 +853,8 @@ int ossl_ech_swaperoo(SSL_CONNECTION *s)
      */
     if (s->hello_retry_request == SSL_HRR_NONE) {
         BIO *handbuf = s->s3.handshake_buffer;
-        PACKET pkt, subpkt;
-        unsigned int mt;
+        CBS pkt, subpkt;
+        uint8_t mt;
 
         s->s3.handshake_buffer = NULL;
         if (ssl3_init_finished_mac(s) == 0) {
@@ -868,17 +868,17 @@ int ossl_ech_swaperoo(SSL_CONNECTION *s)
             return 0;
         }
         curr_buflen = BIO_get_mem_data(handbuf, &curr_buf);
-        if (PACKET_buf_init(&pkt, curr_buf, curr_buflen)
-            && PACKET_get_1(&pkt, &mt)
+        CBS_init(&pkt, curr_buf, curr_buflen);
+        if (CBS_get_u8(&pkt, &mt)
             && mt == SSL3_MT_CLIENT_HELLO
-            && PACKET_remaining(&pkt) >= 3) {
-            if (!PACKET_get_length_prefixed_3(&pkt, &subpkt)) {
+            && CBS_len(&pkt) >= 3) {
+            if (!CBS_get_u24_length_prefixed(&pkt, &subpkt)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 BIO_free(handbuf);
                 return 0;
             }
-            if (PACKET_remaining(&pkt) > 0) {
-                if (ssl3_finish_mac(s, PACKET_data(&pkt), PACKET_remaining(&pkt)) == 0) {
+            if (CBS_len(&pkt) > 0) {
+                if (ssl3_finish_mac(s, CBS_data(&pkt), CBS_len(&pkt)) == 0) {
                     SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                     BIO_free(handbuf);
                     return 0;
@@ -1125,7 +1125,7 @@ end:
  *
  * Note: input here is untrusted!
  */
-int ossl_ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid_off,
+int ossl_ech_get_ch_offsets(SSL_CONNECTION *s, CBS *pkt, size_t *sessid_off,
     size_t *exts_off, size_t *ech_off, uint16_t *echtype,
     int *inner, size_t *sni_off)
 {
@@ -1156,11 +1156,8 @@ int ossl_ech_get_ch_offsets(SSL_CONNECTION *s, PACKET *pkt, size_t *sessid_off,
     *echtype = OSSL_ECH_type_unknown;
     *sni_off = 0;
     /* do the work */
-    ch_len = PACKET_remaining(pkt);
-    if (PACKET_peek_bytes(pkt, &ch, ch_len) != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_EXTENSION);
-        return 0;
-    }
+    ch_len = CBS_len(pkt);
+    ch = CBS_data(pkt);
     if (ossl_ech_helper_get_ch_offsets(ch, ch_len, sessid_off, exts_off,
             &exts_len, ech_off, echtype, &ech_len,
             sni_off, &sni_len, inner)
@@ -1211,15 +1208,18 @@ static int ech_get_outer_sni(SSL_CONNECTION *s, char **osni_str,
     const unsigned char *opd, size_t opl,
     size_t snioffset)
 {
-    PACKET wrap, osni;
-    unsigned int type, osnilen;
+    CBS wrap, osni;
+    uint16_t type, osnilen;
 
-    if (snioffset >= opl
-        || !PACKET_buf_init(&wrap, opd + snioffset, opl - snioffset)
-        || !PACKET_get_net_2(&wrap, &type)
+    if (snioffset >= opl) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+        return 0;
+    }
+    CBS_init(&wrap, opd + snioffset, opl - snioffset);
+    if (!CBS_get_u16(&wrap, &type)
         || type != 0
-        || !PACKET_get_net_2(&wrap, &osnilen)
-        || !PACKET_get_sub_packet(&wrap, &osni, osnilen)) {
+        || !CBS_get_u16(&wrap, &osnilen)
+        || !CBS_get_bytes(&wrap, &osni, osnilen)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         return 0;
     }
@@ -1236,19 +1236,19 @@ static int ech_get_outer_sni(SSL_CONNECTION *s, char **osni_str,
 
 /*
  * decode EncryptedClientHello extension value
- * pkt contains the ECH value as a PACKET
+ * pkt contains the ECH value as a CBS
  * retext is the returned decoded structure
  * payload_offset is the offset to the ciphertext
  * return 1 for good, 0 for bad
  *
  * SSLfatal called from inside, as needed
  */
-static int ech_decode_inbound_ech(SSL_CONNECTION *s, PACKET *pkt,
+static int ech_decode_inbound_ech(SSL_CONNECTION *s, CBS *pkt,
     OSSL_ECH_ENCCH **retext,
     size_t *payload_offset)
 {
-    unsigned int innerorouter = 0xff;
-    unsigned int pval_tmp; /* tmp placeholder of value from packet */
+    uint8_t innerorouter = 0xff;
+    uint16_t pval_tmp; /* tmp placeholder of value from packet */
     OSSL_ECH_ENCCH *extval = NULL;
     const unsigned char *startofech = NULL;
 
@@ -1268,11 +1268,11 @@ static int ech_decode_inbound_ech(SSL_CONNECTION *s, PACKET *pkt,
      *     };
      *  } ECHClientHello;
      */
-    startofech = PACKET_data(pkt);
+    startofech = CBS_data(pkt);
     extval = OPENSSL_zalloc(sizeof(OSSL_ECH_ENCCH));
     if (extval == NULL)
         goto err;
-    if (!PACKET_get_1(pkt, &innerorouter)) {
+    if (!CBS_get_u8(pkt, &innerorouter)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -1280,18 +1280,18 @@ static int ech_decode_inbound_ech(SSL_CONNECTION *s, PACKET *pkt,
         SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
+    if (!CBS_get_u16(pkt, &pval_tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
     extval->kdf_id = pval_tmp & 0xffff;
-    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
+    if (!CBS_get_u16(pkt, &pval_tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
     extval->aead_id = pval_tmp & 0xffff;
     /* config id */
-    if (!PACKET_copy_bytes(pkt, &extval->config_id, 1)) {
+    if (!CBS_copy_bytes(pkt, &extval->config_id, 1)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -1300,7 +1300,7 @@ static int ech_decode_inbound_ech(SSL_CONNECTION *s, PACKET *pkt,
 #endif
     s->ext.ech.attempted_cid = extval->config_id;
     /* enc - the client's public share */
-    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
+    if (!CBS_get_u16(pkt, &pval_tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -1308,7 +1308,7 @@ static int ech_decode_inbound_ech(SSL_CONNECTION *s, PACKET *pkt,
         SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (pval_tmp > PACKET_remaining(pkt)) {
+    if (pval_tmp > CBS_len(pkt)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -1339,7 +1339,7 @@ static int ech_decode_inbound_ech(SSL_CONNECTION *s, PACKET *pkt,
         tmpenc = OPENSSL_malloc(pval_tmp);
         if (tmpenc == NULL)
             goto err;
-        if (!PACKET_copy_bytes(pkt, tmpenc, pval_tmp)) {
+        if (!CBS_copy_bytes(pkt, tmpenc, pval_tmp)) {
             OPENSSL_free(tmpenc);
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
@@ -1365,7 +1365,7 @@ static int ech_decode_inbound_ech(SSL_CONNECTION *s, PACKET *pkt,
         extval->enc = OPENSSL_malloc(pval_tmp);
         if (extval->enc == NULL)
             goto err;
-        if (!PACKET_copy_bytes(pkt, extval->enc, pval_tmp)) {
+        if (!CBS_copy_bytes(pkt, extval->enc, pval_tmp)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
@@ -1378,8 +1378,8 @@ static int ech_decode_inbound_ech(SSL_CONNECTION *s, PACKET *pkt,
         memcpy(s->ext.ech.pub, extval->enc, extval->enc_len);
     }
     /* payload - the encrypted CH */
-    *payload_offset = PACKET_data(pkt) - startofech;
-    if (!PACKET_get_net_2(pkt, &pval_tmp)) {
+    *payload_offset = CBS_data(pkt) - startofech;
+    if (!CBS_get_u16(pkt, &pval_tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -1387,7 +1387,7 @@ static int ech_decode_inbound_ech(SSL_CONNECTION *s, PACKET *pkt,
         SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (pval_tmp == 0 || pval_tmp > PACKET_remaining(pkt)) {
+    if (pval_tmp == 0 || pval_tmp > CBS_len(pkt)) {
         SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -1395,7 +1395,7 @@ static int ech_decode_inbound_ech(SSL_CONNECTION *s, PACKET *pkt,
     extval->payload = OPENSSL_malloc(pval_tmp);
     if (extval->payload == NULL)
         goto err;
-    if (!PACKET_copy_bytes(pkt, extval->payload, pval_tmp)) {
+    if (!CBS_copy_bytes(pkt, extval->payload, pval_tmp)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
@@ -1420,47 +1420,47 @@ err:
  * recall we're dealing with recovered ECH plaintext here so
  * the content must be a TLSv1.3 ECH encoded inner
  */
-static int ech_find_outers(SSL_CONNECTION *s, PACKET *pkt,
+static int ech_find_outers(SSL_CONNECTION *s, CBS *pkt,
     uint16_t *outers, size_t *n_outers)
 {
-    const unsigned char *pp_tmp;
-    unsigned int pi_tmp, extlens, etype, elen, olen;
+    uint16_t pi16, extlens, etype, elen;
+    uint8_t pi8, olen;
     int outers_found = 0;
     size_t i;
-    PACKET op;
+    CBS op;
 
-    PACKET_null_init(&op);
+    CBS_init(&op, NULL, 0);
     /* chew up the packet to extensions */
-    if (!PACKET_get_net_2(pkt, &pi_tmp)
-        || pi_tmp != TLS1_2_VERSION
-        || !PACKET_get_bytes(pkt, &pp_tmp, SSL3_RANDOM_SIZE)
-        || !PACKET_get_1(pkt, &pi_tmp)
-        || pi_tmp != 0x00 /* zero'd session id */
-        || !PACKET_get_net_2(pkt, &pi_tmp) /* ciphersuite len */
-        || !PACKET_get_bytes(pkt, &pp_tmp, pi_tmp) /* suites */
-        || !PACKET_get_1(pkt, &pi_tmp) /* compression meths */
-        || pi_tmp != 0x01 /* 1 octet of comressions */
-        || !PACKET_get_1(pkt, &pi_tmp) /* compression meths */
-        || pi_tmp != 0x00 /* 1 octet of no comressions */
-        || !PACKET_get_net_2(pkt, &extlens) /* len(extensions) */
+    if (!CBS_get_u16(pkt, &pi16)
+        || pi16 != TLS1_2_VERSION
+        || !CBS_skip(pkt, SSL3_RANDOM_SIZE)
+        || !CBS_get_u8(pkt, &pi8)
+        || pi8 != 0x00 /* zero'd session id */
+        || !CBS_get_u16(pkt, &pi16) /* ciphersuite len */
+        || !CBS_skip(pkt, pi16) /* suites */
+        || !CBS_get_u8(pkt, &pi8) /* compression meths */
+        || pi8 != 0x01 /* 1 octet of comressions */
+        || !CBS_get_u8(pkt, &pi8) /* compression meths */
+        || pi8 != 0x00 /* 1 octet of no comressions */
+        || !CBS_get_u16(pkt, &extlens) /* len(extensions) */
         || extlens == 0) { /* no extensions! */
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    while (PACKET_remaining(pkt) > 0 && outers_found == 0) {
-        if (!PACKET_get_net_2(pkt, &etype)) {
+    while (CBS_len(pkt) > 0 && outers_found == 0) {
+        if (!CBS_get_u16(pkt, &etype)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
         if (etype == TLSEXT_TYPE_outer_extensions) {
             outers_found = 1;
-            if (!PACKET_get_length_prefixed_2(pkt, &op)) {
+            if (!CBS_get_u16_length_prefixed(pkt, &op)) {
                 SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
                 goto err;
             }
         } else { /* skip over */
-            if (!PACKET_get_net_2(pkt, &elen)
-                || !PACKET_get_bytes(pkt, &pp_tmp, elen)) {
+            if (!CBS_get_u16(pkt, &elen)
+                || !CBS_skip(pkt, elen)) {
                 SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
                 goto err;
             }
@@ -1476,7 +1476,7 @@ static int ech_find_outers(SSL_CONNECTION *s, PACKET *pkt,
      * be one less than the extension length and an even number
      * and we only support a certain max of outers
      */
-    if (!PACKET_get_1(&op, &olen)
+    if (!CBS_get_u8(&op, &olen)
         || olen % 2 == 1
         || olen / 2 > OSSL_ECH_OUTERS_MAX) {
         SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_EXTENSION);
@@ -1485,13 +1485,13 @@ static int ech_find_outers(SSL_CONNECTION *s, PACKET *pkt,
     *n_outers = olen / 2;
     for (i = 0; i != *n_outers; i++) {
         /* check for ones that are not allowed */
-        if (!PACKET_get_net_2(&op, &pi_tmp)
-            || pi_tmp == TLSEXT_TYPE_outer_extensions
-            || pi_tmp == TLSEXT_TYPE_ech) {
+        if (!CBS_get_u16(&op, &pi16)
+            || pi16 == TLSEXT_TYPE_outer_extensions
+            || pi16 == TLSEXT_TYPE_ech) {
             SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_EXTENSION);
             goto err;
         }
-        outers[i] = (uint16_t)pi_tmp;
+        outers[i] = pi16;
     }
     return 1;
 err:
@@ -1506,19 +1506,21 @@ err:
  * return 1 for good 0 for error
  */
 static int ech_copy_ext(SSL_CONNECTION *s, WPACKET *di, uint16_t type2copy,
-    PACKET *exts)
+    CBS *exts)
 {
-    unsigned int etype, elen;
+    uint16_t etype, elen;
     const unsigned char *eval;
+    CBS eval_cbs;
 
     /* Skip until we find the thing to copy */
-    while (PACKET_remaining(exts) > 0) {
-        if (!PACKET_get_net_2(exts, &etype)
-            || !PACKET_get_net_2(exts, &elen)
-            || !PACKET_get_bytes(exts, &eval, elen)) {
+    while (CBS_len(exts) > 0) {
+        if (!CBS_get_u16(exts, &etype)
+            || !CBS_get_u16(exts, &elen)
+            || !CBS_get_bytes(exts, &eval_cbs, elen)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
+        eval = CBS_data(&eval_cbs);
         if (etype == type2copy) {
             if (!WPACKET_put_bytes_u16(di, etype)
                 || !WPACKET_put_bytes_u16(di, elen)
@@ -1545,64 +1547,61 @@ err:
  * n_outers is the number of outers found
  * return 1 for good, 0 for error
  */
-static int ech_reconstitute_inner(SSL_CONNECTION *s, WPACKET *di, PACKET *ei,
+static int ech_reconstitute_inner(SSL_CONNECTION *s, WPACKET *di, CBS *ei,
     const unsigned char *ob, size_t ob_len,
     uint16_t *outers, size_t n_outers)
 {
-    const unsigned char *pp_tmp, *eval, *outer_exts;
-    unsigned int pi_tmp, etype, elen, outer_extslen;
-    PACKET outer, session_id;
+    uint16_t pi16, etype, elen, outer_extslen;
+    uint8_t pi8;
+    CBS outer, session_id, tmp_cbs, outer_exts_cbs;
     size_t i;
     int outers_done = 0;
 
-    if (PACKET_buf_init(&outer, ob, ob_len) != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
+    CBS_init(&outer, ob, ob_len);
     /* read/write from encoded inner to decoded inner with help from outer */
     if (/* version */
-        !PACKET_get_net_2(&outer, &pi_tmp)
-        || !PACKET_get_net_2(ei, &pi_tmp)
-        || !WPACKET_put_bytes_u16(di, pi_tmp)
-        || pi_tmp != TLS1_2_VERSION
+        !CBS_get_u16(&outer, &pi16)
+        || !CBS_get_u16(ei, &pi16)
+        || !WPACKET_put_bytes_u16(di, pi16)
+        || pi16 != TLS1_2_VERSION
 
         /* client random */
-        || !PACKET_get_bytes(&outer, &pp_tmp, SSL3_RANDOM_SIZE)
-        || !PACKET_get_bytes(ei, &pp_tmp, SSL3_RANDOM_SIZE)
-        || !WPACKET_memcpy(di, pp_tmp, SSL3_RANDOM_SIZE)
+        || !CBS_get_bytes(&outer, &tmp_cbs, SSL3_RANDOM_SIZE)
+        || !CBS_get_bytes(ei, &tmp_cbs, SSL3_RANDOM_SIZE)
+        || !WPACKET_memcpy(di, CBS_data(&tmp_cbs), SSL3_RANDOM_SIZE)
 
         /* session ID */
-        || !PACKET_get_1(ei, &pi_tmp)
-        || !PACKET_get_length_prefixed_1(&outer, &session_id)
+        || !CBS_get_u8(ei, &pi8)
+        || !CBS_get_u8_length_prefixed(&outer, &session_id)
         || !WPACKET_start_sub_packet_u8(di)
-        || (PACKET_remaining(&session_id) != 0
-            && !WPACKET_memcpy(di, PACKET_data(&session_id),
-                PACKET_remaining(&session_id)))
+        || (CBS_len(&session_id) != 0
+            && !WPACKET_memcpy(di, CBS_data(&session_id),
+                CBS_len(&session_id)))
         || !WPACKET_close(di)
 
         /* ciphersuites */
-        || !PACKET_get_net_2(&outer, &pi_tmp) /* ciphersuite len */
-        || !PACKET_get_bytes(&outer, &pp_tmp, pi_tmp) /* suites */
-        || !PACKET_get_net_2(ei, &pi_tmp) /* ciphersuite len */
-        || !PACKET_get_bytes(ei, &pp_tmp, pi_tmp) /* suites */
-        || !WPACKET_put_bytes_u16(di, pi_tmp)
-        || !WPACKET_memcpy(di, pp_tmp, pi_tmp)
+        || !CBS_get_u16(&outer, &pi16) /* ciphersuite len */
+        || !CBS_skip(&outer, pi16) /* suites */
+        || !CBS_get_u16(ei, &pi16) /* ciphersuite len */
+        || !CBS_get_bytes(ei, &tmp_cbs, pi16) /* suites */
+        || !WPACKET_put_bytes_u16(di, pi16)
+        || !WPACKET_memcpy(di, CBS_data(&tmp_cbs), pi16)
 
         /* compression len & meth */
-        || !PACKET_get_net_2(ei, &pi_tmp)
-        || !PACKET_get_net_2(&outer, &pi_tmp)
-        || !WPACKET_put_bytes_u16(di, pi_tmp)) {
+        || !CBS_get_u16(ei, &pi16)
+        || !CBS_get_u16(&outer, &pi16)
+        || !WPACKET_put_bytes_u16(di, pi16)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
     /* handle simple, but unlikely, case first */
     if (n_outers == 0) {
-        if (PACKET_remaining(ei) == 0)
+        if (CBS_len(ei) == 0)
             return 1; /* no exts is theoretically possible */
-        if (!PACKET_get_net_2(ei, &pi_tmp) /* len(extensions) */
-            || !PACKET_get_bytes(ei, &pp_tmp, pi_tmp)
-            || !WPACKET_put_bytes_u16(di, pi_tmp)
-            || !WPACKET_memcpy(di, pp_tmp, pi_tmp)) {
+        if (!CBS_get_u16(ei, &pi16) /* len(extensions) */
+            || !CBS_get_bytes(ei, &tmp_cbs, pi16)
+            || !WPACKET_put_bytes_u16(di, pi16)
+            || !WPACKET_memcpy(di, CBS_data(&tmp_cbs), pi16)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
@@ -1613,31 +1612,28 @@ static int ech_reconstitute_inner(SSL_CONNECTION *s, WPACKET *di, PACKET *ei,
      * general case, copy one by one from inner, 'till we hit
      * the outers extension, then copy one by one from outer
      */
-    if (!PACKET_get_net_2(ei, &pi_tmp) /* len(extensions) */
-        || !PACKET_get_net_2(&outer, &outer_extslen)
-        || !PACKET_get_bytes(&outer, &outer_exts, outer_extslen)
+    if (!CBS_get_u16(ei, &pi16) /* len(extensions) */
+        || !CBS_get_u16(&outer, &outer_extslen)
+        || !CBS_get_bytes(&outer, &outer_exts_cbs, outer_extslen)
         || !WPACKET_start_sub_packet_u16(di)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    while (PACKET_remaining(ei) > 0) {
-        if (!PACKET_get_net_2(ei, &etype)
-            || !PACKET_get_net_2(ei, &elen)
-            || !PACKET_get_bytes(ei, &eval, elen)) {
+    while (CBS_len(ei) > 0) {
+        if (!CBS_get_u16(ei, &etype)
+            || !CBS_get_u16(ei, &elen)
+            || !CBS_get_bytes(ei, &tmp_cbs, elen)) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
             goto err;
         }
         if (etype == TLSEXT_TYPE_outer_extensions) {
-            PACKET exts;
+            CBS exts;
 
             if (outers_done++) { /* just do this once */
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 goto err;
             }
-            if (PACKET_buf_init(&exts, outer_exts, outer_extslen) != 1) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                goto err;
-            }
+            CBS_init(&exts, CBS_data(&outer_exts_cbs), outer_extslen);
             for (i = 0; i != n_outers; i++) {
                 if (ech_copy_ext(s, di, outers[i], &exts) != 1)
                     /* SSLfatal called already */
@@ -1646,7 +1642,7 @@ static int ech_reconstitute_inner(SSL_CONNECTION *s, WPACKET *di, PACKET *ei,
         } else {
             if (!WPACKET_put_bytes_u16(di, etype)
                 || !WPACKET_put_bytes_u16(di, elen)
-                || !WPACKET_memcpy(di, eval, elen)) {
+                || !WPACKET_memcpy(di, CBS_data(&tmp_cbs), elen)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_EXTENSION);
                 goto err;
             }
@@ -1685,7 +1681,7 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
     size_t encoded_inner_len)
 {
     int rv = 0;
-    PACKET ei; /* encoded inner */
+    CBS ei; /* encoded inner */
     BUF_MEM *di_mem = NULL;
     uint16_t outers[OSSL_ECH_OUTERS_MAX]; /* compressed extension types */
     size_t n_outers = 0;
@@ -1699,11 +1695,11 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
         || !BUF_MEM_grow(di_mem, SSL3_RT_MAX_PLAIN_LENGTH)
         || !WPACKET_init(&di, di_mem)
         || !WPACKET_put_bytes_u8(&di, SSL3_MT_CLIENT_HELLO)
-        || !WPACKET_start_sub_packet_u24(&di)
-        || !PACKET_buf_init(&ei, encoded_inner, encoded_inner_len)) {
+        || !WPACKET_start_sub_packet_u24(&di)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }
+    CBS_init(&ei, encoded_inner, encoded_inner_len);
 #ifdef OSSL_ECH_SUPERVERBOSE
     memset(outers, -1, sizeof(outers)); /* fill with known values for debug */
 #endif
@@ -1714,10 +1710,7 @@ static int ech_decode_inner(SSL_CONNECTION *s, const unsigned char *ob,
 
     /* 2. reconstitute inner CH */
     /* reset ei */
-    if (PACKET_buf_init(&ei, encoded_inner, encoded_inner_len) != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
+    CBS_init(&ei, encoded_inner, encoded_inner_len);
     if (ech_reconstitute_inner(s, &di, &ei, ob, ob_len, outers, n_outers) != 1)
         goto err; /* SSLfatal called already */
     /* 3. store final inner CH in connection */
@@ -1864,12 +1857,9 @@ end:
         uint16_t echtype = OSSL_ECH_type_unknown; /* type of ECH seen */
         size_t outersnioffset = 0; /* offset to SNI in outer */
         int innerflag = OSSL_ECH_UNKNOWN_CH_TYPE;
-        PACKET innerchpkt;
+        CBS innerchpkt;
 
-        if (PACKET_buf_init(&innerchpkt, clear, clearlen) != 1) {
-            SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_EXTENSION);
-            goto paderr;
-        }
+        CBS_init(&innerchpkt, clear, clearlen);
         /* reset the offsets, as we move from outer to inner CH */
         s->ext.ech.ch_offsets_done = 0;
         rv = ossl_ech_get_ch_offsets(s, &innerchpkt, &startofsessid,
@@ -1941,11 +1931,11 @@ paderr:
  * 4. if decrypt worked, decode and de-compress cleartext to
  *    make up real inner CH for later processing
  */
-int ossl_ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
+int ossl_ech_early_decrypt(SSL_CONNECTION *s, CBS *outerpkt, CBS *newpkt)
 {
     int num = 0, cfgind = -1, foundcfg = 0, forhrr = 0, innerflag = -1;
     OSSL_ECH_ENCCH *extval = NULL;
-    PACKET echpkt;
+    CBS echpkt;
     const unsigned char *startofech = NULL, *opd = NULL;
     size_t echlen = 0, clearlen = 0, aad_len = 0;
     unsigned char *clear = NULL, *aad = NULL;
@@ -1981,8 +1971,8 @@ int ossl_ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
     s->ext.ech.attempted_type = echtype;
     if (s->hello_retry_request == SSL_HRR_PENDING)
         forhrr = 1; /* set forhrr if that's correct */
-    opl = PACKET_remaining(outerpkt);
-    opd = PACKET_data(outerpkt);
+    opl = CBS_len(outerpkt);
+    opd = CBS_data(outerpkt);
     s->tmp_session_id_len = opd[startofsessid]; /* grab the session id */
     if (s->tmp_session_id_len > SSL_MAX_SSL_SESSION_ID_LENGTH
         || startofsessid + 1 + s->tmp_session_id_len > opl) {
@@ -2012,10 +2002,7 @@ int ossl_ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
         goto err;
     }
-    if (PACKET_buf_init(&echpkt, startofech, echlen) != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_BAD_EXTENSION);
-        goto err;
-    }
+    CBS_init(&echpkt, startofech, echlen);
     if (ech_decode_inbound_ech(s, &echpkt, &extval, &startofciphertext) != 1)
         goto err; /* SSLfatal already called if needed */
     /*
@@ -2131,14 +2118,10 @@ int ossl_ech_early_decrypt(SSL_CONNECTION *s, PACKET *outerpkt, PACKET *newpkt)
     ossl_ech_pbuf("Inner CH (decoded)", s->ext.ech.innerch,
         s->ext.ech.innerch_len);
 #endif
-    if (PACKET_buf_init(newpkt, s->ext.ech.innerch,
-            s->ext.ech.innerch_len)
-        != 1) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        goto err;
-    }
+    CBS_init(newpkt, s->ext.ech.innerch,
+        s->ext.ech.innerch_len);
     /* tls_process_client_hello doesn't want the message header, so skip it */
-    if (!PACKET_forward(newpkt, SSL3_HM_HEADER_LENGTH)) {
+    if (!CBS_skip(newpkt, SSL3_HM_HEADER_LENGTH)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         goto err;
     }

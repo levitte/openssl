@@ -183,13 +183,13 @@ static int ech_check_format(const unsigned char *val, size_t len, int *fmt)
  * @param exts is the binary form extensions
  * @return 1 for good, 0 for error
  */
-static int ech_decode_echconfig_exts(OSSL_ECHSTORE_ENTRY *ee, PACKET *exts)
+static int ech_decode_echconfig_exts(OSSL_ECHSTORE_ENTRY *ee, CBS *exts)
 {
-    unsigned int exttype = 0;
+    uint16_t exttype = 0;
     size_t extlen = 0;
     unsigned char *extval = NULL;
     OSSL_ECHEXT *oe = NULL;
-    PACKET ext;
+    CBS ext;
 
     /*
      * reminder: exts is a two-octet length prefixed list of:
@@ -198,26 +198,26 @@ static int ech_decode_echconfig_exts(OSSL_ECHSTORE_ENTRY *ee, PACKET *exts)
      * - length octets
      * we've consumed the overall length before getting here
      */
-    while (PACKET_remaining(exts) > 0) {
+    while (CBS_len(exts) > 0) {
         exttype = 0, extlen = 0;
         extval = NULL;
         oe = NULL;
-        if (!PACKET_get_net_2(exts, &exttype) || !PACKET_get_length_prefixed_2(exts, &ext)) {
+        if (!CBS_get_u16(exts, &exttype) || !CBS_get_u16_length_prefixed(exts, &ext)) {
             ERR_raise(ERR_LIB_SSL, SSL_R_BAD_ECHCONFIG_EXTENSION);
             goto err;
         }
-        if (PACKET_remaining(&ext) >= OSSL_ECH_MAX_ECHCONFIGEXT_LEN) {
+        if (CBS_len(&ext) >= OSSL_ECH_MAX_ECHCONFIGEXT_LEN) {
             ERR_raise(ERR_LIB_SSL, SSL_R_BAD_ECHCONFIG_EXTENSION);
             goto err;
         }
-        if (!PACKET_memdup(&ext, &extval, &extlen)) {
+        if (!ossl_cbs_memdup(&ext, &extval, &extlen)) {
             ERR_raise(ERR_LIB_SSL, SSL_R_BAD_ECHCONFIG_EXTENSION);
             goto err;
         }
         oe = OPENSSL_malloc(sizeof(*oe));
         if (oe == NULL)
             goto err;
-        oe->type = (uint16_t)exttype;
+        oe->type = exttype;
         oe->val = extval;
         extval = NULL; /* avoid double free */
         oe->len = (uint16_t)extlen;
@@ -334,14 +334,14 @@ err:
  * @param for_retry says whether to include in a retry_config (if priv present)
  * @return 1 for success, 0 for error
  */
-static int ech_decode_one_entry(OSSL_ECHSTORE_ENTRY **rent, PACKET *pkt,
+static int ech_decode_one_entry(OSSL_ECHSTORE_ENTRY **rent, CBS *pkt,
     EVP_PKEY *priv, int for_retry)
 {
     size_t ech_content_length = 0;
-    unsigned int tmpi;
+    uint16_t tmpi;
     const unsigned char *tmpecp = NULL;
-    size_t tmpeclen = 0, test_publen = 0;
-    PACKET ver_pkt, pub_pkt, cipher_suites, public_name_pkt, exts;
+    size_t test_publen = 0;
+    CBS ver_pkt, pub_pkt, cipher_suites, public_name_pkt, exts;
     uint16_t thiskemid;
     size_t suiteoctets = 0;
     unsigned int ci = 0;
@@ -361,26 +361,25 @@ static int ech_decode_one_entry(OSSL_ECHSTORE_ENTRY **rent, PACKET *pkt,
     if (ee == NULL)
         goto err;
     /* note start of encoding so we can make a copy later */
-    tmpeclen = PACKET_remaining(pkt);
-    if (PACKET_peek_bytes(pkt, &tmpecp, tmpeclen) != 1
-        || !PACKET_get_net_2(pkt, &tmpi)) {
+    tmpecp = CBS_data(pkt);
+    if (!CBS_get_u16(pkt, &tmpi)) {
         ERR_raise(ERR_LIB_SSL, SSL_R_ECH_DECODE_ERROR);
         goto err;
     }
-    ee->version = (uint16_t)tmpi;
+    ee->version = tmpi;
 
     /* grab versioned packet data */
-    if (!PACKET_get_length_prefixed_2(pkt, &ver_pkt)) {
+    if (!CBS_get_u16_length_prefixed(pkt, &ver_pkt)) {
         ERR_raise(ERR_LIB_SSL, SSL_R_ECH_DECODE_ERROR);
         goto err;
     }
-    ech_content_length = (unsigned int)PACKET_remaining(&ver_pkt);
+    ech_content_length = (unsigned int)CBS_len(&ver_pkt);
     switch (ee->version) {
     case OSSL_ECH_RFC9849_VERSION:
         break;
     default:
         /* skip over in case we get something we can handle later */
-        if (!PACKET_forward(&ver_pkt, ech_content_length)) {
+        if (!CBS_skip(&ver_pkt, ech_content_length)) {
             ERR_raise(ERR_LIB_SSL, SSL_R_ECH_DECODE_ERROR);
             goto err;
         }
@@ -389,23 +388,23 @@ static int ech_decode_one_entry(OSSL_ECHSTORE_ENTRY **rent, PACKET *pkt,
         *rent = NULL;
         return 1;
     }
-    if (!PACKET_copy_bytes(&ver_pkt, &ee->config_id, 1)
-        || !PACKET_get_net_2(&ver_pkt, &tmpi)
-        || !PACKET_get_length_prefixed_2(&ver_pkt, &pub_pkt)
-        || !PACKET_memdup(&pub_pkt, &ee->pub, &ee->pub_len)
-        || !PACKET_get_length_prefixed_2(&ver_pkt, &cipher_suites)
-        || (suiteoctets = PACKET_remaining(&cipher_suites)) <= 0
+    if (!CBS_copy_bytes(&ver_pkt, &ee->config_id, 1)
+        || !CBS_get_u16(&ver_pkt, &tmpi)
+        || !CBS_get_u16_length_prefixed(&ver_pkt, &pub_pkt)
+        || !ossl_cbs_memdup(&pub_pkt, &ee->pub, &ee->pub_len)
+        || !CBS_get_u16_length_prefixed(&ver_pkt, &cipher_suites)
+        || (suiteoctets = CBS_len(&cipher_suites)) <= 0
         || (suiteoctets % 2) == 1
         || suiteoctets / OSSL_ECH_CIPHER_LEN > UINT_MAX) {
         ERR_raise(ERR_LIB_SSL, SSL_R_ECH_DECODE_ERROR);
         goto err;
     }
-    thiskemid = (uint16_t)tmpi;
+    thiskemid = tmpi;
     ee->nsuites = (unsigned int)(suiteoctets / OSSL_ECH_CIPHER_LEN);
     ee->suites = OPENSSL_malloc_array(ee->nsuites, sizeof(*ee->suites));
     if (ee->suites == NULL)
         goto err;
-    while (PACKET_copy_bytes(&cipher_suites, cipher,
+    while (CBS_copy_bytes(&cipher_suites, cipher,
         OSSL_ECH_CIPHER_LEN)) {
         ee->suites[ci].kem_id = thiskemid;
         ee->suites[ci].kdf_id = cipher[0] << 8 | cipher[1];
@@ -415,19 +414,19 @@ static int ech_decode_one_entry(OSSL_ECHSTORE_ENTRY **rent, PACKET *pkt,
             goto err;
         }
     }
-    if (PACKET_remaining(&cipher_suites) > 0
-        || !PACKET_copy_bytes(&ver_pkt, &max_name_len, 1)) {
+    if (CBS_len(&cipher_suites) > 0
+        || !CBS_copy_bytes(&ver_pkt, &max_name_len, 1)) {
         ERR_raise(ERR_LIB_SSL, SSL_R_ECH_DECODE_ERROR);
         goto err;
     }
     ee->max_name_length = max_name_len;
-    if (!PACKET_get_length_prefixed_1(&ver_pkt, &public_name_pkt)) {
+    if (!CBS_get_u8_length_prefixed(&ver_pkt, &public_name_pkt)) {
         ERR_raise(ERR_LIB_SSL, SSL_R_ECH_DECODE_ERROR);
         goto err;
     }
-    if (PACKET_contains_zero_byte(&public_name_pkt)
-        || PACKET_remaining(&public_name_pkt) < TLSEXT_MINLEN_host_name
-        || !PACKET_strndup(&public_name_pkt, &ee->public_name)) {
+    if (CBS_contains_zero_byte(&public_name_pkt)
+        || CBS_len(&public_name_pkt) < TLSEXT_MINLEN_host_name
+        || !ossl_cbs_strndup(&public_name_pkt, &ee->public_name)) {
         ERR_raise(ERR_LIB_SSL, SSL_R_ECH_DECODE_ERROR);
         goto err;
     }
@@ -438,17 +437,17 @@ static int ech_decode_one_entry(OSSL_ECHSTORE_ENTRY **rent, PACKET *pkt,
      * then it may be necessary to also check that the set of
      * extensions loaded contain no duplicate types.
      */
-    if (!PACKET_get_length_prefixed_2(&ver_pkt, &exts)) {
+    if (!CBS_get_u16_length_prefixed(&ver_pkt, &exts)) {
         ERR_raise(ERR_LIB_SSL, SSL_R_ECH_DECODE_ERROR);
         goto err;
     }
-    if (PACKET_remaining(&exts) > 0
+    if (CBS_len(&exts) > 0
         && ech_decode_echconfig_exts(ee, &exts) != 1) {
         ERR_raise(ERR_LIB_SSL, SSL_R_ECH_DECODE_ERROR);
         goto err;
     }
     /* set length of encoding of this ECHConfig */
-    ee->encoded_len = PACKET_data(&ver_pkt) - tmpecp;
+    ee->encoded_len = CBS_data(&ver_pkt) - tmpecp;
     /* copy encoded as it might get free'd if a reduce happens */
     ee->encoded = OPENSSL_memdup(tmpecp, ee->encoded_len);
     if (ee->encoded == NULL)
@@ -501,7 +500,7 @@ static int ech_decode_and_flatten(OSSL_ECHSTORE *es, EVP_PKEY *priv, int for_ret
 {
     int rv = 0;
     size_t remaining = 0;
-    PACKET opkt, pkt;
+    CBS opkt, pkt;
     OSSL_ECHSTORE_ENTRY *ee = NULL;
 
     if (binbuf == NULL || binblen == 0 || binblen < OSSL_ECH_MIN_ECHCONFIG_LEN
@@ -509,18 +508,18 @@ static int ech_decode_and_flatten(OSSL_ECHSTORE *es, EVP_PKEY *priv, int for_ret
         ERR_raise(ERR_LIB_SSL, ERR_R_PASSED_NULL_PARAMETER);
         goto err;
     }
-    if (PACKET_buf_init(&opkt, binbuf, binblen) != 1
-        || !PACKET_get_length_prefixed_2(&opkt, &pkt)) {
+    CBS_init(&opkt, binbuf, binblen);
+    if (!CBS_get_u16_length_prefixed(&opkt, &pkt)) {
         ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
         goto err;
     }
-    remaining = PACKET_remaining(&pkt);
+    remaining = CBS_len(&pkt);
     while (remaining > 0) {
         if (ech_decode_one_entry(&ee, &pkt, priv, for_retry) != 1) {
             ERR_raise(ERR_LIB_SSL, ERR_R_INTERNAL_ERROR);
             goto err;
         }
-        remaining = PACKET_remaining(&pkt);
+        remaining = CBS_len(&pkt);
         /* if unsupported version we can skip over */
         if (ee == NULL)
             continue;

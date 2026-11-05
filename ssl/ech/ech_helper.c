@@ -78,9 +78,10 @@ int ossl_ech_helper_get_ch_offsets(const unsigned char *ch, size_t ch_len,
     size_t *ech_len, size_t *sni_off,
     size_t *sni_len, int *inner)
 {
-    unsigned int elen = 0, etype = 0, pi_tmp = 0;
-    const unsigned char *pp_tmp = NULL, *chstart = NULL, *estart = NULL;
-    PACKET pkt;
+    uint16_t elen = 0, etype = 0, pi16 = 0;
+    uint8_t pi8 = 0;
+    const unsigned char *estart = NULL;
+    CBS pkt;
     int done = 0;
 
     if (ch == NULL || ch_len == 0 || sessid_off == NULL || exts_off == NULL
@@ -91,26 +92,24 @@ int ossl_ech_helper_get_ch_offsets(const unsigned char *ch, size_t ch_len,
     *exts_len = 0;
     *inner = OSSL_ECH_UNKNOWN_CH_TYPE;
     *echtype = 0xffff;
-    if (!PACKET_buf_init(&pkt, ch, ch_len))
-        return 0;
-    chstart = PACKET_data(&pkt);
-    if (!PACKET_get_net_2(&pkt, &pi_tmp))
+    CBS_init(&pkt, ch, ch_len);
+    if (!CBS_get_u16(&pkt, &pi16))
         return 0;
     /* if we're not TLSv1.2+ then we can bail, but it's not an error */
-    if (pi_tmp != TLS1_2_VERSION)
+    if (pi16 != TLS1_2_VERSION)
         return 1;
     /* chew up the packet to extensions */
-    if (!PACKET_get_bytes(&pkt, &pp_tmp, SSL3_RANDOM_SIZE)
-        || (*sessid_off = PACKET_data(&pkt) - chstart) == 0
-        || !PACKET_get_1(&pkt, &pi_tmp) /* sessid len */
-        || !PACKET_get_bytes(&pkt, &pp_tmp, pi_tmp) /* sessid */
-        || !PACKET_get_net_2(&pkt, &pi_tmp) /* ciphersuite len */
-        || !PACKET_get_bytes(&pkt, &pp_tmp, pi_tmp) /* suites */
-        || !PACKET_get_1(&pkt, &pi_tmp) /* compression meths */
-        || !PACKET_get_bytes(&pkt, &pp_tmp, pi_tmp) /* comp meths */
-        || (*exts_off = PACKET_data(&pkt) - chstart) == 0
-        || !PACKET_get_net_2(&pkt, &pi_tmp) /* len(extensions) */
-        || (*exts_len = (size_t)pi_tmp) == 0)
+    if (!CBS_skip(&pkt, SSL3_RANDOM_SIZE)
+        || (*sessid_off = CBS_offset(&pkt)) == 0
+        || !CBS_get_u8(&pkt, &pi8) /* sessid len */
+        || !CBS_skip(&pkt, pi8) /* sessid */
+        || !CBS_get_u16(&pkt, &pi16) /* ciphersuite len */
+        || !CBS_skip(&pkt, pi16) /* suites */
+        || !CBS_get_u8(&pkt, &pi8) /* compression meths */
+        || !CBS_skip(&pkt, pi8) /* comp meths */
+        || (*exts_off = CBS_offset(&pkt)) == 0
+        || !CBS_get_u16(&pkt, &pi16) /* len(extensions) */
+        || (*exts_len = (size_t)pi16) == 0)
         /*
          * unexpectedly, we return 1 here, as doing otherwise will
          * break some non-ECH test code that truncates CH messages
@@ -123,30 +122,33 @@ int ossl_ech_helper_get_ch_offsets(const unsigned char *ch, size_t ch_len,
     if (*exts_len == 0)
         return 1;
     /* find what we want from extensions */
-    estart = PACKET_data(&pkt);
-    while (PACKET_remaining(&pkt) > 0
-        && (size_t)(PACKET_data(&pkt) - estart) < *exts_len
+    estart = CBS_data(&pkt);
+    while (CBS_len(&pkt) > 0
+        && (size_t)(CBS_data(&pkt) - estart) < *exts_len
         && done < 2) {
-        if (!PACKET_get_net_2(&pkt, &etype)
-            || !PACKET_get_net_2(&pkt, &elen))
+        if (!CBS_get_u16(&pkt, &etype)
+            || !CBS_get_u16(&pkt, &elen))
             return 1; /* see note above */
         if (etype == TLSEXT_TYPE_ech) {
+            uint8_t innerchtype;
+
             if (elen == 0)
                 return 0;
-            *ech_off = PACKET_data(&pkt) - chstart - 4;
+            if (!CBS_peek_u8(&pkt, &innerchtype))
+                return 1; /* see note above */
+            *inner = innerchtype;
+            *ech_off = CBS_offset(&pkt) - 4;
             *echtype = etype;
             *ech_len = elen;
             done++;
         }
         if (etype == TLSEXT_TYPE_server_name) {
-            *sni_off = PACKET_data(&pkt) - chstart - 4;
+            *sni_off = CBS_offset(&pkt) - 4;
             *sni_len = elen;
             done++;
         }
-        if (!PACKET_get_bytes(&pkt, &pp_tmp, elen))
+        if (!CBS_skip(&pkt, elen))
             return 1; /* see note above */
-        if (etype == TLSEXT_TYPE_ech)
-            *inner = pp_tmp[0];
     }
     return 1;
 }

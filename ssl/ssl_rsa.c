@@ -602,32 +602,31 @@ static int serverinfo_find_extension(const unsigned char *serverinfo,
     const unsigned char **extension_data,
     size_t *extension_length)
 {
-    PACKET pkt, data;
+    CBS pkt, data;
 
     *extension_data = NULL;
     *extension_length = 0;
     if (serverinfo == NULL || serverinfo_length == 0)
         return -1;
 
-    if (!PACKET_buf_init(&pkt, serverinfo, serverinfo_length))
-        return -1;
+    CBS_init(&pkt, serverinfo, serverinfo_length);
 
     for (;;) {
-        unsigned int type = 0;
-        unsigned long context = 0;
+        uint16_t type = 0;
+        uint32_t context = 0;
 
         /* end of serverinfo */
-        if (PACKET_remaining(&pkt) == 0)
+        if (CBS_len(&pkt) == 0)
             return 0; /* Extension not found */
 
-        if (!PACKET_get_net_4(&pkt, &context)
-            || !PACKET_get_net_2(&pkt, &type)
-            || !PACKET_get_length_prefixed_2(&pkt, &data))
+        if (!CBS_get_u32(&pkt, &context)
+            || !CBS_get_u16(&pkt, &type)
+            || !CBS_get_u16_length_prefixed(&pkt, &data))
             return -1;
 
         if (type == extension_type) {
-            *extension_data = PACKET_data(&data);
-            *extension_length = PACKET_remaining(&data);
+            *extension_data = CBS_data(&data);
+            *extension_length = CBS_len(&data);
             return 1; /* Success */
         }
     }
@@ -712,7 +711,7 @@ static int serverinfo_process_buffer(unsigned int version,
     const unsigned char *serverinfo,
     size_t serverinfo_length, SSL_CTX *ctx)
 {
-    PACKET pkt;
+    CBS pkt;
 
     if (serverinfo == NULL || serverinfo_length == 0)
         return 0;
@@ -720,17 +719,16 @@ static int serverinfo_process_buffer(unsigned int version,
     if (version != SSL_SERVERINFOV1 && version != SSL_SERVERINFOV2)
         return 0;
 
-    if (!PACKET_buf_init(&pkt, serverinfo, serverinfo_length))
-        return 0;
+    CBS_init(&pkt, serverinfo, serverinfo_length);
 
-    while (PACKET_remaining(&pkt)) {
-        unsigned long context = 0;
-        unsigned int ext_type = 0;
-        PACKET data;
+    while (CBS_len(&pkt)) {
+        uint32_t context = 0;
+        uint16_t ext_type = 0;
+        CBS data;
 
-        if ((version == SSL_SERVERINFOV2 && !PACKET_get_net_4(&pkt, &context))
-            || !PACKET_get_net_2(&pkt, &ext_type)
-            || !PACKET_get_length_prefixed_2(&pkt, &data))
+        if ((version == SSL_SERVERINFOV2 && !CBS_get_u32(&pkt, &context))
+            || !CBS_get_u16(&pkt, &ext_type)
+            || !CBS_get_u16_length_prefixed(&pkt, &data))
             return 0;
 
         if (ctx == NULL)

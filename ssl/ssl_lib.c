@@ -3919,11 +3919,11 @@ int SSL_select_next_proto(unsigned char **out, unsigned char *outlen,
     unsigned int server_len,
     const unsigned char *client, unsigned int client_len)
 {
-    PACKET cpkt, csubpkt, spkt, ssubpkt;
+    CBS cpkt, csubpkt, spkt, ssubpkt;
 
-    if (!PACKET_buf_init(&cpkt, client, client_len)
-        || !PACKET_get_length_prefixed_1(&cpkt, &csubpkt)
-        || PACKET_remaining(&csubpkt) == 0) {
+    CBS_init(&cpkt, client, client_len);
+    if (!CBS_get_u8_length_prefixed(&cpkt, &csubpkt)
+        || CBS_len(&csubpkt) == 0) {
         *out = NULL;
         *outlen = 0;
         return OPENSSL_NPN_NO_OVERLAP;
@@ -3933,34 +3933,29 @@ int SSL_select_next_proto(unsigned char **out, unsigned char *outlen,
      * Set the default opportunistic protocol. Will be overwritten if we find
      * a match.
      */
-    *out = (unsigned char *)PACKET_data(&csubpkt);
-    *outlen = (unsigned char)PACKET_remaining(&csubpkt);
+    *out = (unsigned char *)CBS_data(&csubpkt);
+    *outlen = (unsigned char)CBS_len(&csubpkt);
 
     /*
      * For each protocol in server preference order, see if we support it.
      */
-    if (PACKET_buf_init(&spkt, server, server_len)) {
-        while (PACKET_get_length_prefixed_1(&spkt, &ssubpkt)) {
-            if (PACKET_remaining(&ssubpkt) == 0)
-                continue; /* Invalid - ignore it */
-            if (PACKET_buf_init(&cpkt, client, client_len)) {
-                while (PACKET_get_length_prefixed_1(&cpkt, &csubpkt)) {
-                    if (PACKET_equal(&csubpkt, PACKET_data(&ssubpkt),
-                            PACKET_remaining(&ssubpkt))) {
-                        /* We found a match */
-                        *out = (unsigned char *)PACKET_data(&ssubpkt);
-                        *outlen = (unsigned char)PACKET_remaining(&ssubpkt);
-                        return OPENSSL_NPN_NEGOTIATED;
-                    }
-                }
-                /* Ignore spurious trailing bytes in the client list */
-            } else {
-                /* This should never happen */
-                return OPENSSL_NPN_NO_OVERLAP;
+    CBS_init(&spkt, server, server_len);
+    while (CBS_get_u8_length_prefixed(&spkt, &ssubpkt)) {
+        if (CBS_len(&ssubpkt) == 0)
+            continue; /* Invalid - ignore it */
+        CBS_init(&cpkt, client, client_len);
+        while (CBS_get_u8_length_prefixed(&cpkt, &csubpkt)) {
+            if (CBS_mem_equal(&csubpkt, CBS_data(&ssubpkt),
+                    CBS_len(&ssubpkt))) {
+                /* We found a match */
+                *out = (unsigned char *)CBS_data(&ssubpkt);
+                *outlen = (unsigned char)CBS_len(&ssubpkt);
+                return OPENSSL_NPN_NEGOTIATED;
             }
         }
-        /* Ignore spurious trailing bytes in the server list */
+        /* Ignore spurious trailing bytes in the client list */
     }
+    /* Ignore spurious trailing bytes in the server list */
 
     /*
      * There's no overlap between our protocols and the server's list. We use
@@ -7395,8 +7390,8 @@ size_t SSL_client_hello_get0_ciphers(SSL *s, const unsigned char **out)
     if (sc->clienthello == NULL)
         return 0;
     if (out != NULL)
-        *out = PACKET_data(&sc->clienthello->ciphersuites);
-    return PACKET_remaining(&sc->clienthello->ciphersuites);
+        *out = CBS_data(&sc->clienthello->ciphersuites);
+    return CBS_len(&sc->clienthello->ciphersuites);
 }
 
 size_t SSL_client_hello_get0_compression_methods(SSL *s, const unsigned char **out)
@@ -7507,9 +7502,9 @@ int SSL_client_hello_get0_ext(SSL *s, unsigned int type, const unsigned char **o
         r = sc->clienthello->pre_proc_exts + i;
         if (r->present && r->type == type) {
             if (out != NULL)
-                *out = PACKET_data(&r->data);
+                *out = CBS_data(&r->data);
             if (outlen != NULL)
-                *outlen = PACKET_remaining(&r->data);
+                *outlen = CBS_len(&r->data);
             return 1;
         }
     }
@@ -7671,14 +7666,14 @@ int ssl_log_secret(SSL_CONNECTION *sc,
         secret_len);
 }
 
-int ssl_cache_cipherlist(SSL_CONNECTION *s, PACKET *cipher_suites)
+int ssl_cache_cipherlist(SSL_CONNECTION *s, CBS *cipher_suites)
 {
-    if (PACKET_remaining(cipher_suites) == 0) {
+    if (CBS_len(cipher_suites) == 0) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_NO_CIPHERS_SPECIFIED);
         return 0;
     }
 
-    if (PACKET_remaining(cipher_suites) % TLS_CIPHER_LEN != 0) {
+    if (CBS_len(cipher_suites) % TLS_CIPHER_LEN != 0) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_ERROR_IN_RECEIVED_CIPHER_LIST);
         return 0;
     }
@@ -7687,7 +7682,7 @@ int ssl_cache_cipherlist(SSL_CONNECTION *s, PACKET *cipher_suites)
     s->s3.tmp.ciphers_raw = NULL;
     s->s3.tmp.ciphers_rawlen = 0;
 
-    if (!PACKET_memdup(cipher_suites, &s->s3.tmp.ciphers_raw,
+    if (!ossl_cbs_memdup(cipher_suites, &s->s3.tmp.ciphers_raw,
             &s->s3.tmp.ciphers_rawlen)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
@@ -7699,18 +7694,17 @@ int SSL_bytes_to_cipher_list(SSL *s, const unsigned char *bytes, size_t len,
     int isv2format, STACK_OF(SSL_CIPHER) **sk,
     STACK_OF(SSL_CIPHER) **scsvs)
 {
-    PACKET pkt;
+    CBS pkt;
     SSL_CONNECTION *sc = SSL_CONNECTION_FROM_SSL(s);
 
     if (sc == NULL || isv2format)
         return 0;
 
-    if (!PACKET_buf_init(&pkt, bytes, len))
-        return 0;
+    CBS_init(&pkt, bytes, len);
     return ossl_bytes_to_cipher_list(sc, &pkt, sk, scsvs, 0);
 }
 
-int ossl_bytes_to_cipher_list(SSL_CONNECTION *s, PACKET *cipher_suites,
+int ossl_bytes_to_cipher_list(SSL_CONNECTION *s, CBS *cipher_suites,
     STACK_OF(SSL_CIPHER) **skp,
     STACK_OF(SSL_CIPHER) **scsvs_out,
     int fatal)
@@ -7721,7 +7715,7 @@ int ossl_bytes_to_cipher_list(SSL_CONNECTION *s, PACKET *cipher_suites,
     int n = TLS_CIPHER_LEN;
     unsigned char cipher[TLS_CIPHER_LEN];
 
-    if (PACKET_remaining(cipher_suites) == 0) {
+    if (CBS_len(cipher_suites) == 0) {
         if (fatal)
             SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_NO_CIPHERS_SPECIFIED);
         else
@@ -7729,7 +7723,7 @@ int ossl_bytes_to_cipher_list(SSL_CONNECTION *s, PACKET *cipher_suites,
         return 0;
     }
 
-    if (PACKET_remaining(cipher_suites) % n != 0) {
+    if (CBS_len(cipher_suites) % n != 0) {
         if (fatal)
             SSLfatal(s, SSL_AD_DECODE_ERROR,
                 SSL_R_ERROR_IN_RECEIVED_CIPHER_LIST);
@@ -7748,7 +7742,7 @@ int ossl_bytes_to_cipher_list(SSL_CONNECTION *s, PACKET *cipher_suites,
         goto err;
     }
 
-    while (PACKET_copy_bytes(cipher_suites, cipher, n)) {
+    while (CBS_copy_bytes(cipher_suites, cipher, n)) {
         c = ssl_get_cipher_by_char(s, cipher, 1);
         if (c != NULL) {
             if ((c->valid && !sk_SSL_CIPHER_push(sk, c)) || (!c->valid && !sk_SSL_CIPHER_push(scsvs, c))) {
@@ -7760,7 +7754,7 @@ int ossl_bytes_to_cipher_list(SSL_CONNECTION *s, PACKET *cipher_suites,
             }
         }
     }
-    if (PACKET_remaining(cipher_suites) > 0) {
+    if (CBS_len(cipher_suites) > 0) {
         if (fatal)
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_LENGTH);
         else

@@ -592,8 +592,8 @@ static SUB_STATE_RETURN read_state_machine(SSL_CONNECTION *s)
     int ret, mt;
     size_t len = 0, headerlen;
     int (*transition)(SSL_CONNECTION *s, int mt);
-    PACKET pkt;
-    MSG_PROCESS_RETURN (*process_message)(SSL_CONNECTION *s, PACKET *pkt);
+    CBS pkt;
+    MSG_PROCESS_RETURN (*process_message)(SSL_CONNECTION *s, CBS *pkt);
     WORK_STATE (*post_process_message)(SSL_CONNECTION *s, WORK_STATE wst);
     size_t (*max_message_size)(SSL_CONNECTION *s);
     void (*cb)(const SSL *ssl, int type, int val) = NULL;
@@ -710,16 +710,13 @@ static SUB_STATE_RETURN read_state_machine(SSL_CONNECTION *s)
             /*
              * We initialise the buffer including the message header, and
              * then skip over header ready to process the message. This
-             * ensures that calls to PACKET_msg_start() gives us the whole
-             * message
+             * ensures that s->init_buf->data gives us the start of the
+             * whole message
              */
             headerlen = (char *)s->init_msg - s->init_buf->data;
-            if (!PACKET_buf_init(&pkt, (unsigned char *)s->init_buf->data,
-                    len + headerlen)) {
-                SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                return SUB_STATE_ERROR;
-            }
-            if (!PACKET_forward(&pkt, headerlen)) {
+            CBS_init(&pkt, (unsigned char *)s->init_buf->data,
+                len + headerlen);
+            if (!CBS_skip(&pkt, headerlen)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 return SUB_STATE_ERROR;
             }
