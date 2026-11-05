@@ -46,8 +46,8 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
 {
     int rc = 0;
     QUIC_SRTM *srtm = NULL;
-    PACKET pkt;
-    unsigned int cmd;
+    CBS pkt;
+    uint8_t cmd;
     uint64_t arg_opaque, arg_seq_num, arg_idx;
     QUIC_STATELESS_RESET_TOKEN arg_token;
     size_t limit = 0;
@@ -57,11 +57,10 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
         goto err;
     }
 
-    if (!PACKET_buf_init(&pkt, buf, len))
-        goto err;
+    CBS_init(&pkt, buf, len);
 
-    while (PACKET_remaining(&pkt) > 0) {
-        if (!PACKET_get_1(&pkt, &cmd))
+    while (CBS_len(&pkt) > 0) {
+        if (!CBS_get_u8(&pkt, &cmd))
             goto err;
 
         if (++limit > MAX_CMDS) {
@@ -71,9 +70,9 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
 
         switch (cmd % CMD_MAX) {
         case CMD_ADD:
-            if (!PACKET_get_net_8(&pkt, &arg_opaque)
-                || !PACKET_get_net_8(&pkt, &arg_seq_num)
-                || !PACKET_copy_bytes(&pkt, arg_token.token,
+            if (!CBS_get_u64(&pkt, &arg_opaque)
+                || !CBS_get_u64(&pkt, &arg_seq_num)
+                || !CBS_copy_bytes(&pkt, arg_token.token,
                     sizeof(arg_token.token)))
                 continue; /* just stop */
 
@@ -83,8 +82,8 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
             break;
 
         case CMD_REMOVE:
-            if (!PACKET_get_net_8(&pkt, &arg_opaque)
-                || !PACKET_get_net_8(&pkt, &arg_seq_num))
+            if (!CBS_get_u64(&pkt, &arg_opaque)
+                || !CBS_get_u64(&pkt, &arg_seq_num))
                 continue; /* just stop */
 
             if (ossl_quic_srtm_remove(srtm, (void *)(uintptr_t)arg_opaque,
@@ -93,7 +92,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
             break;
 
         case CMD_CULL:
-            if (!PACKET_get_net_8(&pkt, &arg_opaque))
+            if (!CBS_get_u64(&pkt, &arg_opaque))
                 continue; /* just stop */
 
             if (ossl_quic_srtm_cull(srtm, (void *)(uintptr_t)arg_opaque))
@@ -101,9 +100,9 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
             break;
 
         case CMD_LOOKUP:
-            if (!PACKET_copy_bytes(&pkt, arg_token.token,
+            if (!CBS_copy_bytes(&pkt, arg_token.token,
                     sizeof(arg_token.token))
-                || !PACKET_get_net_8(&pkt, &arg_idx))
+                || !CBS_get_u64(&pkt, &arg_idx))
                 continue; /* just stop */
 
             if (ossl_quic_srtm_lookup(srtm, &arg_token, (size_t)arg_idx,

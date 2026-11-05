@@ -13,7 +13,7 @@
 #include <openssl/bio.h>
 #include "fuzzer.h"
 #include "internal/quic_lcidm.h"
-#include "internal/packet.h"
+#include "internal/bytestring.h"
 
 int FuzzerInitialize(int *argc, char ***argv)
 {
@@ -50,13 +50,13 @@ enum {
 
 #define MAX_CMDS 5000
 
-static int get_cid(PACKET *pkt, QUIC_CONN_ID *cid)
+static int get_cid(CBS *pkt, QUIC_CONN_ID *cid)
 {
-    unsigned int cidl;
+    uint8_t cidl;
 
-    if (!PACKET_get_1(pkt, &cidl)
+    if (!CBS_get_u8(pkt, &cidl)
         || cidl > QUIC_MAX_CONN_ID_LEN
-        || !PACKET_copy_bytes(pkt, cid->id, cidl))
+        || !CBS_copy_bytes(pkt, cid->id, cidl))
         return 0;
 
     cid->id_len = (unsigned char)cidl;
@@ -67,19 +67,18 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
 {
     int rc = 0;
     QUIC_LCIDM *lcidm = NULL;
-    PACKET pkt;
+    CBS pkt;
     uint64_t arg_opaque, arg_retire_prior_to, seq_num_out;
-    unsigned int cmd, lcidl;
+    uint8_t cmd, lcidl;
     QUIC_CONN_ID arg_cid, cid_out;
     OSSL_QUIC_FRAME_NEW_CONN_ID ncid_frame;
     int did_retire;
     void *opaque_out;
     size_t limit = 0;
 
-    if (!PACKET_buf_init(&pkt, buf, len))
-        goto err;
+    CBS_init(&pkt, buf, len);
 
-    if (!PACKET_get_1(&pkt, &lcidl)
+    if (!CBS_get_u8(&pkt, &lcidl)
         || lcidl > QUIC_MAX_CONN_ID_LEN) {
         rc = -1;
         goto err;
@@ -90,8 +89,8 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
         goto err;
     }
 
-    while (PACKET_remaining(&pkt) > 0) {
-        if (!PACKET_get_1(&pkt, &cmd))
+    while (CBS_len(&pkt) > 0) {
+        if (!CBS_get_u8(&pkt, &cmd))
             goto err;
 
         if (++limit > MAX_CMDS)
@@ -99,7 +98,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
 
         switch (cmd) {
         case CMD_ENROL_ODCID:
-            if (!PACKET_get_net_8(&pkt, &arg_opaque)
+            if (!CBS_get_u64(&pkt, &arg_opaque)
                 || !get_cid(&pkt, &arg_cid)) {
                 rc = -1;
                 goto err;
@@ -110,7 +109,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
             break;
 
         case CMD_RETIRE_ODCID:
-            if (!PACKET_get_net_8(&pkt, &arg_opaque)) {
+            if (!CBS_get_u64(&pkt, &arg_opaque)) {
                 rc = -1;
                 goto err;
             }
@@ -119,7 +118,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
             break;
 
         case CMD_GENERATE_INITIAL:
-            if (!PACKET_get_net_8(&pkt, &arg_opaque)) {
+            if (!CBS_get_u64(&pkt, &arg_opaque)) {
                 rc = -1;
                 goto err;
             }
@@ -129,7 +128,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
             break;
 
         case CMD_GENERATE:
-            if (!PACKET_get_net_8(&pkt, &arg_opaque)) {
+            if (!CBS_get_u64(&pkt, &arg_opaque)) {
                 rc = -1;
                 goto err;
             }
@@ -139,8 +138,8 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
             break;
 
         case CMD_RETIRE:
-            if (!PACKET_get_net_8(&pkt, &arg_opaque)
-                || !PACKET_get_net_8(&pkt, &arg_retire_prior_to)) {
+            if (!CBS_get_u64(&pkt, &arg_opaque)
+                || !CBS_get_u64(&pkt, &arg_retire_prior_to)) {
                 rc = -1;
                 goto err;
             }
@@ -152,7 +151,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
             break;
 
         case CMD_CULL:
-            if (!PACKET_get_net_8(&pkt, &arg_opaque)) {
+            if (!CBS_get_u64(&pkt, &arg_opaque)) {
                 rc = -1;
                 goto err;
             }

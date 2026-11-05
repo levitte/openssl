@@ -13,7 +13,7 @@
 #include <openssl/bio.h>
 #include "fuzzer.h"
 #include "internal/quic_rcidm.h"
-#include "internal/packet.h"
+#include "internal/bytestring.h"
 
 int FuzzerInitialize(int *argc, char ***argv)
 {
@@ -59,13 +59,13 @@ enum {
     CMD_GET_PREFERRED_TX_DCID_CHANGED
 };
 
-static int get_cid(PACKET *pkt, QUIC_CONN_ID *cid)
+static int get_cid(CBS *pkt, QUIC_CONN_ID *cid)
 {
-    unsigned int cidl;
+    uint8_t cidl;
 
-    if (!PACKET_get_1(pkt, &cidl)
+    if (!CBS_get_u8(pkt, &cidl)
         || cidl > QUIC_MAX_CONN_ID_LEN
-        || !PACKET_copy_bytes(pkt, cid->id, cidl))
+        || !CBS_copy_bytes(pkt, cid->id, cidl))
         return 0;
 
     cid->id_len = (unsigned char)cidl;
@@ -76,20 +76,19 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
 {
     int rc = 0;
     QUIC_RCIDM *rcidm = NULL;
-    PACKET pkt;
+    CBS pkt;
     uint64_t seq_num_out, arg_num_pkt;
-    unsigned int cmd, arg_clear;
+    uint8_t cmd, arg_clear;
     QUIC_CONN_ID arg_cid, cid_out;
     OSSL_QUIC_FRAME_NEW_CONN_ID ncid_frame;
 
-    if (!PACKET_buf_init(&pkt, buf, len))
-        goto err;
+    CBS_init(&pkt, buf, len);
 
     if ((rcidm = ossl_quic_rcidm_new(NULL)) == NULL)
         goto err;
 
-    while (PACKET_remaining(&pkt) > 0) {
-        if (!PACKET_get_1(&pkt, &cmd))
+    while (CBS_len(&pkt) > 0) {
+        if (!CBS_get_u8(&pkt, &cmd))
             goto err;
 
         switch (cmd) {
@@ -133,8 +132,8 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
             break;
 
         case CMD_ADD_FROM_NCID:
-            if (!PACKET_get_net_8(&pkt, &ncid_frame.seq_num)
-                || !PACKET_get_net_8(&pkt, &ncid_frame.retire_prior_to)
+            if (!CBS_get_u64(&pkt, &ncid_frame.seq_num)
+                || !CBS_get_u64(&pkt, &ncid_frame.retire_prior_to)
                 || !get_cid(&pkt, &ncid_frame.conn_id)) {
                 rc = -1;
                 goto err;
@@ -148,7 +147,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
             break;
 
         case CMD_ON_PACKET_SENT:
-            if (!PACKET_get_net_8(&pkt, &arg_num_pkt)) {
+            if (!CBS_get_u64(&pkt, &arg_num_pkt)) {
                 rc = -1;
                 goto err;
             }
@@ -173,7 +172,7 @@ int FuzzerTestOneInput(const uint8_t *buf, size_t len)
             break;
 
         case CMD_GET_PREFERRED_TX_DCID_CHANGED:
-            if (!PACKET_get_1(&pkt, &arg_clear)) {
+            if (!CBS_get_u8(&pkt, &arg_clear)) {
                 rc = -1;
                 goto err;
             }
