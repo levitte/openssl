@@ -6,29 +6,21 @@ DERlib - internal OpenSSL DER library
 
 =head1 DESCRIPTION
 
-OpenSSL contains an internal small DER reading and writing library,
+OpenSSL contains an internal small DER writing library,
 as an alternative to the publicly known i2d and d2i functions.  It's
 solely constituted of functions that work as building blocks to create
-more similar functions to encode and decode larger structures.
+more similar functions to encode larger structures.
 
 All these functions have similar function signatures (C<something>
 will vary depending on what the function will encode):
 
     int DER_w_something(WPACKET *pkt, int tag, ...);
 
-=begin comment
-
-When readers are added, add this:
-
-    int DER_r_something(PACKET *pkt, int tag, ...);
-
-=end comment
-
 I<pkt> is the packet context used, and I<tag> should be the
 context-specific tag value of the element being handled, or -1 if there
 is no tag number for that element (you may use the convenience macro
 B<DER_NO_CONTEXT> instead of -1).  Any argument following is the C
-variable that's being encoded or decoded.
+variable that's being encoded.
 
 =head2 DER writers / encoders
 
@@ -62,14 +54,6 @@ As an example of the use of I<tag>, an ASN.1 element like this:
 Would be encoded like this:
 
     ossl_DER_w_bn(pkt, 1, v)
-
-=begin comment
-
-=head2 DER readers / decoders
-
-TBA
-
-=end comment
 
 =head1 EXAMPLES
 
