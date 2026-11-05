@@ -167,6 +167,16 @@ int CBS_get_bytes(CBS *cbs, CBS *out, size_t len)
     return 1;
 }
 
+int CBS_copy_bytes(CBS *cbs, uint8_t *out, size_t len)
+{
+    CBS tmp;
+
+    if (!CBS_get_bytes(cbs, &tmp, len))
+        return 0;
+    memcpy(out, CBS_data(&tmp), len);
+    return 1;
+}
+
 static int cbs_get_length_prefixed(CBS *cbs, CBS *out, size_t width)
 {
     CBS tmp = *cbs;

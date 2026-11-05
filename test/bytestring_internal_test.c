@@ -84,6 +84,22 @@ static int test_cbs_peek_u8(void)
     return 1;
 }
 
+static int test_cbs_copy_bytes(void)
+{
+    static const uint8_t data[] = { 1, 2, 3, 4 };
+    CBS cbs;
+    uint8_t out[3];
+
+    CBS_init(&cbs, data, sizeof(data));
+    if (!TEST_true(CBS_copy_bytes(&cbs, out, sizeof(out)))
+        || !TEST_mem_eq(out, sizeof(out), data, sizeof(out))
+        || !TEST_size_t_eq(CBS_len(&cbs), 1)
+        || !TEST_false(CBS_copy_bytes(&cbs, out, sizeof(out))))
+        return 0;
+
+    return 1;
+}
+
 static int test_cbs_get_prefixed(void)
 {
     static const uint8_t data[] = {
@@ -385,6 +401,7 @@ int setup_tests(void)
     ADD_TEST(test_cbs_skip);
     ADD_TEST(test_cbs_get_u);
     ADD_TEST(test_cbs_peek_u8);
+    ADD_TEST(test_cbs_copy_bytes);
     ADD_TEST(test_cbs_get_prefixed);
     ADD_TEST(test_cbs_get_prefixed_bad);
     ADD_TEST(test_cbs_offset_dup);

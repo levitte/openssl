@@ -206,6 +206,16 @@ int CBS_peek_u8(const CBS *cbs, uint8_t *out);
 int CBS_get_bytes(CBS *cbs, CBS *out, size_t len);
 
 /**
+ * @brief CBS_copy_bytes copies the next len bytes from cbs to out and
+ * advances cbs.
+ * @param cbs the CBS
+ * @param out the buffer to copy into
+ * @param len the number of bytes
+ * @returns one on success and zero on error
+ */
+int CBS_copy_bytes(CBS *cbs, uint8_t *out, size_t len);
+
+/**
  * @brief CBS_get_u8_length_prefixed sets *out to the contents of an 8-bit,
  * length-prefixed value from cbs and advances cbs over it.
  * @param cbs the CBS

@@ -24,17 +24,6 @@
 typedef int(ENCODE_FN)(const POLY *s, WPACKET *pkt);
 typedef int(DECODE_FN)(POLY *s, CBS *pkt);
 
-/* CBS has no copy-to-buffer reader; PACKET_copy_bytes() had one. */
-static int cbs_copy_bytes(CBS *cbs, uint8_t *out, size_t len)
-{
-    CBS tmp;
-
-    if (!CBS_get_bytes(cbs, &tmp, len))
-        return 0;
-    memcpy(out, CBS_data(&tmp), len);
-    return 1;
-}
-
 static ENCODE_FN poly_encode_signed_2;
 static ENCODE_FN poly_encode_signed_4;
 static ENCODE_FN poly_encode_signed_two_to_power_17;
@@ -703,7 +692,7 @@ int ossl_ml_dsa_pk_decode(ML_DSA_KEY *key, const uint8_t *in, size_t in_len)
     if (ctx == NULL)
         goto err;
     CBS_init(&pkt, in, in_len);
-    if (!cbs_copy_bytes(&pkt, key->rho, sizeof(key->rho)))
+    if (!CBS_copy_bytes(&pkt, key->rho, sizeof(key->rho)))
         goto err;
     for (i = 0; i < key->t1.num_poly; i++)
         if (!poly_decode_10_bits(key->t1.poly + i, &pkt))
@@ -813,9 +802,9 @@ int ossl_ml_dsa_sk_decode(ML_DSA_KEY *key, const uint8_t *in, size_t in_len)
         decode_fn = poly_decode_signed_2;
 
     CBS_init(&pkt, in, in_len);
-    if (!cbs_copy_bytes(&pkt, key->rho, sizeof(key->rho))
-        || !cbs_copy_bytes(&pkt, key->K, sizeof(key->K))
-        || !cbs_copy_bytes(&pkt, input_tr, sizeof(input_tr)))
+    if (!CBS_copy_bytes(&pkt, key->rho, sizeof(key->rho))
+        || !CBS_copy_bytes(&pkt, key->K, sizeof(key->K))
+        || !CBS_copy_bytes(&pkt, input_tr, sizeof(input_tr)))
         return 0;
 
     for (i = 0; i < l; ++i)
@@ -989,7 +978,7 @@ int ossl_ml_dsa_sig_decode(ML_DSA_SIG *sig, const uint8_t *in, size_t in_len,
         decode_fn = poly_decode_signed_two_to_power_17;
 
     CBS_init(&pkt, in, in_len);
-    if (!cbs_copy_bytes(&pkt, sig->c_tilde, sig->c_tilde_len))
+    if (!CBS_copy_bytes(&pkt, sig->c_tilde, sig->c_tilde_len))
         goto err;
     for (i = 0; i < sig->z.num_poly; ++i)
         if (!decode_fn(sig->z.poly + i, &pkt))
