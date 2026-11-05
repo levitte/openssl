@@ -15,13 +15,25 @@
 #include "ml_dsa_key.h"
 #include "ml_dsa_sign.h"
 #include "internal/packet.h"
+#include "internal/bytestring.h"
 
 #define POLY_COEFF_NUM_BYTES(bits) ((bits) * (ML_DSA_NUM_POLY_COEFFICIENTS / 8))
 /* Cast mod_sub result in support of left-shifts that create 64-bit values. */
 #define mod_sub_64(a, b) ((uint64_t)mod_sub(a, b))
 
 typedef int(ENCODE_FN)(const POLY *s, WPACKET *pkt);
-typedef int(DECODE_FN)(POLY *s, PACKET *pkt);
+typedef int(DECODE_FN)(POLY *s, CBS *pkt);
+
+/* CBS has no copy-to-buffer reader; PACKET_copy_bytes() had one. */
+static int cbs_copy_bytes(CBS *cbs, uint8_t *out, size_t len)
+{
+    CBS tmp;
+
+    if (!CBS_get_bytes(cbs, &tmp, len))
+        return 0;
+    memcpy(out, CBS_data(&tmp), len);
+    return 1;
+}
 
 static ENCODE_FN poly_encode_signed_2;
 static ENCODE_FN poly_encode_signed_4;
@@ -159,15 +171,17 @@ static int poly_encode_10_bits(const POLY *p, WPACKET *pkt)
  *
  * @returns 1 on success, or 0 on error.
  */
-static int poly_decode_10_bits(POLY *p, PACKET *pkt)
+static int poly_decode_10_bits(POLY *p, CBS *pkt)
 {
     const uint8_t *in = NULL;
     uint32_t v, w, mask = 0x3ff; /* 10 bits */
     uint32_t *out = p->coeff, *end = out + ML_DSA_NUM_POLY_COEFFICIENTS;
+    CBS chunk;
 
     do {
-        if (!PACKET_get_bytes(pkt, &in, 5))
+        if (!CBS_get_bytes(pkt, &chunk, 5))
             return 0;
+        in = CBS_data(&chunk);
 
         in = OPENSSL_load_u32_le(&v, in);
         w = *in;
@@ -222,16 +236,18 @@ static int poly_encode_signed_4(const POLY *p, WPACKET *pkt)
  * @returns 1 on success, or 0 on error. An error will occur if any of the
  *          coefficients are not in the correct range.
  */
-static int poly_decode_signed_4(POLY *p, PACKET *pkt)
+static int poly_decode_signed_4(POLY *p, CBS *pkt)
 {
     int i, ret = 0;
     uint32_t v, *out = p->coeff;
     const uint8_t *in;
     uint32_t msbs, mask;
+    CBS chunk;
 
     for (i = 0; i < (ML_DSA_NUM_POLY_COEFFICIENTS / 8); i++) {
-        if (!PACKET_get_bytes(pkt, &in, 4))
+        if (!CBS_get_bytes(pkt, &chunk, 4))
             goto err;
+        in = CBS_data(&chunk);
         in = OPENSSL_load_u32_le(&v, in);
 
         /*
@@ -320,16 +336,18 @@ static int poly_encode_signed_2(const POLY *p, WPACKET *pkt)
  * @returns 1 on success, or 0 on error. An error will occur if any of the
  *          coefficients are not in the correct range.
  */
-static int poly_decode_signed_2(POLY *p, PACKET *pkt)
+static int poly_decode_signed_2(POLY *p, CBS *pkt)
 {
     int i, ret = 0;
     uint32_t u = 0, v = 0, *out = p->coeff;
     uint32_t msbs, mask;
     const uint8_t *in;
+    CBS chunk;
 
     for (i = 0; i < (ML_DSA_NUM_POLY_COEFFICIENTS / 8); i++) {
-        if (!PACKET_get_bytes(pkt, &in, 3))
+        if (!CBS_get_bytes(pkt, &chunk, 3))
             goto err;
+        in = CBS_data(&chunk);
         memcpy(&u, in, 3);
         OPENSSL_load_u32_le(&v, (uint8_t *)&u);
 
@@ -420,20 +438,22 @@ static int poly_encode_signed_two_to_power_12(const POLY *p, WPACKET *pkt)
  *
  * @returns 1 on success, or 0 on error.
  */
-static int poly_decode_signed_two_to_power_12(POLY *p, PACKET *pkt)
+static int poly_decode_signed_two_to_power_12(POLY *p, CBS *pkt)
 {
     int i, ret = 0;
     uint32_t *out = p->coeff;
     const uint8_t *in;
     static const uint32_t range = 1u << 12;
     static const uint32_t mask_13_bits = (1u << 13) - 1;
+    CBS chunk;
 
     for (i = 0; i < (ML_DSA_NUM_POLY_COEFFICIENTS / 8); i++) {
         uint64_t a1;
         uint32_t a2, b13;
 
-        if (!PACKET_get_bytes(pkt, &in, 13))
+        if (!CBS_get_bytes(pkt, &chunk, 13))
             goto err;
+        in = CBS_data(&chunk);
         in = OPENSSL_load_u64_le(&a1, in);
         in = OPENSSL_load_u32_le(&a2, in);
         b13 = (uint32_t)*in;
@@ -505,20 +525,22 @@ static int poly_encode_signed_two_to_power_19(const POLY *p, WPACKET *pkt)
  *
  * @returns 1 on success, or 0 on error.
  */
-static int poly_decode_signed_two_to_power_19(POLY *p, PACKET *pkt)
+static int poly_decode_signed_two_to_power_19(POLY *p, CBS *pkt)
 {
     int i, ret = 0;
     uint32_t *out = p->coeff;
     const uint8_t *in;
     static const uint32_t range = 1u << 19;
     static const uint32_t mask_20_bits = (1u << 20) - 1;
+    CBS chunk;
 
     for (i = 0; i < (ML_DSA_NUM_POLY_COEFFICIENTS / 4); i++) {
         uint32_t a1, a2;
         uint16_t a3;
 
-        if (!PACKET_get_bytes(pkt, &in, 10))
+        if (!CBS_get_bytes(pkt, &chunk, 10))
             goto err;
+        in = CBS_data(&chunk);
         in = OPENSSL_load_u32_le(&a1, in);
         in = OPENSSL_load_u32_le(&a2, in);
         in = OPENSSL_load_u16_le(&a3, in);
@@ -586,19 +608,21 @@ static int poly_encode_signed_two_to_power_17(const POLY *p, WPACKET *pkt)
  *
  * @returns 1 on success, or 0 on error.
  */
-static int poly_decode_signed_two_to_power_17(POLY *p, PACKET *pkt)
+static int poly_decode_signed_two_to_power_17(POLY *p, CBS *pkt)
 {
     uint32_t *out = p->coeff;
     const uint32_t *end = out + ML_DSA_NUM_POLY_COEFFICIENTS;
     const uint8_t *in;
     static const uint32_t range = 1u << 17;
     static const uint32_t mask_18_bits = (1u << 18) - 1;
+    CBS chunk;
 
     do {
         uint32_t a1, a2, a3;
 
-        if (!PACKET_get_bytes(pkt, &in, 9))
+        if (!CBS_get_bytes(pkt, &chunk, 9))
             return 0;
+        in = CBS_data(&chunk);
         in = OPENSSL_load_u32_le(&a1, in);
         in = OPENSSL_load_u32_le(&a2, in);
         a3 = (uint32_t)*in;
@@ -665,7 +689,7 @@ int ossl_ml_dsa_pk_decode(ML_DSA_KEY *key, const uint8_t *in, size_t in_len)
 {
     int ret = 0;
     size_t i;
-    PACKET pkt;
+    CBS pkt;
     EVP_MD_CTX *ctx;
 
     if (key->priv_encoding != NULL || key->pub_encoding != NULL)
@@ -678,8 +702,8 @@ int ossl_ml_dsa_pk_decode(ML_DSA_KEY *key, const uint8_t *in, size_t in_len)
     ctx = EVP_MD_CTX_new();
     if (ctx == NULL)
         goto err;
-    if (!PACKET_buf_init(&pkt, in, in_len)
-        || !PACKET_copy_bytes(&pkt, key->rho, sizeof(key->rho)))
+    CBS_init(&pkt, in, in_len);
+    if (!cbs_copy_bytes(&pkt, key->rho, sizeof(key->rho)))
         goto err;
     for (i = 0; i < key->t1.num_poly; i++)
         if (!poly_decode_10_bits(key->t1.poly + i, &pkt))
@@ -767,7 +791,7 @@ int ossl_ml_dsa_sk_decode(ML_DSA_KEY *key, const uint8_t *in, size_t in_len)
     const ML_DSA_PARAMS *params = key->params;
     size_t i, k = params->k, l = params->l;
     uint8_t input_tr[ML_DSA_TR_BYTES];
-    PACKET pkt;
+    CBS pkt;
 
     /* When loading from an explicit key, drop the seed. */
     OPENSSL_secure_clear_free(key->seed, ML_DSA_SEED_BYTES);
@@ -788,10 +812,10 @@ int ossl_ml_dsa_sk_decode(ML_DSA_KEY *key, const uint8_t *in, size_t in_len)
     else
         decode_fn = poly_decode_signed_2;
 
-    if (!PACKET_buf_init(&pkt, in, in_len)
-        || !PACKET_copy_bytes(&pkt, key->rho, sizeof(key->rho))
-        || !PACKET_copy_bytes(&pkt, key->K, sizeof(key->K))
-        || !PACKET_copy_bytes(&pkt, input_tr, sizeof(input_tr)))
+    CBS_init(&pkt, in, in_len);
+    if (!cbs_copy_bytes(&pkt, key->rho, sizeof(key->rho))
+        || !cbs_copy_bytes(&pkt, key->K, sizeof(key->K))
+        || !cbs_copy_bytes(&pkt, input_tr, sizeof(input_tr)))
         return 0;
 
     for (i = 0; i < l; ++i)
@@ -803,7 +827,7 @@ int ossl_ml_dsa_sk_decode(ML_DSA_KEY *key, const uint8_t *in, size_t in_len)
     for (i = 0; i < k; ++i)
         if (!poly_decode_signed_two_to_power_12(key->t0.poly + i, &pkt))
             goto err;
-    if (PACKET_remaining(&pkt) != 0)
+    if (CBS_len(&pkt) != 0)
         goto err;
     if (key->priv_encoding == NULL) {
         key->priv_encoding = OPENSSL_secure_malloc(in_len);
@@ -864,15 +888,18 @@ static int hint_bits_encode(const VECTOR *hint, WPACKET *pkt, uint32_t omega)
  * @returns 1 if the hints were successfully unpacked, or 0
  * if 'pkt' is too small or malformed.
  */
-static int hint_bits_decode(VECTOR *hint, PACKET *pkt, uint32_t omega)
+static int hint_bits_decode(VECTOR *hint, CBS *pkt, uint32_t omega)
 {
     size_t coeff_index = 0, k = hint->num_poly;
     const uint8_t *in, *limits;
     POLY *p = hint->poly, *end = p + k;
+    CBS in_cbs, limits_cbs;
 
-    if (!PACKET_get_bytes(pkt, &in, omega)
-        || !PACKET_get_bytes(pkt, &limits, k))
+    if (!CBS_get_bytes(pkt, &in_cbs, omega)
+        || !CBS_get_bytes(pkt, &limits_cbs, k))
         return 0;
+    in = CBS_data(&in_cbs);
+    limits = CBS_data(&limits_cbs);
 
     vector_zero(hint); /* Set all coefficients to zero */
 
@@ -954,22 +981,22 @@ int ossl_ml_dsa_sig_decode(ML_DSA_SIG *sig, const uint8_t *in, size_t in_len,
     int ret = 0;
     size_t i;
     DECODE_FN *decode_fn;
-    PACKET pkt;
+    CBS pkt;
 
     if (params->gamma1 == ML_DSA_GAMMA1_TWO_POWER_19)
         decode_fn = poly_decode_signed_two_to_power_19;
     else
         decode_fn = poly_decode_signed_two_to_power_17;
 
-    if (!PACKET_buf_init(&pkt, in, in_len)
-        || !PACKET_copy_bytes(&pkt, sig->c_tilde, sig->c_tilde_len))
+    CBS_init(&pkt, in, in_len);
+    if (!cbs_copy_bytes(&pkt, sig->c_tilde, sig->c_tilde_len))
         goto err;
     for (i = 0; i < sig->z.num_poly; ++i)
         if (!decode_fn(sig->z.poly + i, &pkt))
             goto err;
 
     if (!hint_bits_decode(&sig->hint, &pkt, params->omega)
-        || PACKET_remaining(&pkt) != 0)
+        || CBS_len(&pkt) != 0)
         goto err;
     ret = 1;
 err:
@@ -980,10 +1007,9 @@ int ossl_ml_dsa_poly_decode_expand_mask(POLY *out,
     const uint8_t *in, size_t in_len,
     uint32_t gamma1)
 {
-    PACKET pkt;
+    CBS pkt;
 
-    if (!PACKET_buf_init(&pkt, in, in_len))
-        return 0;
+    CBS_init(&pkt, in, in_len);
     if (gamma1 == ML_DSA_GAMMA1_TWO_POWER_19)
         return poly_decode_signed_two_to_power_19(out, &pkt);
     else
