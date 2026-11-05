@@ -2747,7 +2747,7 @@ static int tls_process_ske_psk_preamble(SSL_CONNECTION *s, CBS *pkt)
     if (CBS_len(&psk_identity_hint) == 0) {
         OPENSSL_free(s->session->psk_identity_hint);
         s->session->psk_identity_hint = NULL;
-    } else if (!ossl_cbs_strndup(&psk_identity_hint,
+    } else if (!CBS_strdup(&psk_identity_hint,
                    &s->session->psk_identity_hint)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;

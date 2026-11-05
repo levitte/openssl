@@ -164,7 +164,7 @@ int tls_parse_ctos_server_name(SSL_CONNECTION *s, CBS *pkt,
          */
         OPENSSL_free(s->ext.hostname);
         s->ext.hostname = NULL;
-        if (!ossl_cbs_strndup(&hostname, &s->ext.hostname)) {
+        if (!CBS_strdup(&hostname, &s->ext.hostname)) {
             SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
             return 0;
         }
@@ -239,7 +239,7 @@ int tls_parse_ctos_srp(SSL_CONNECTION *s, CBS *pkt, unsigned int context,
         return 0;
     }
 
-    if (!ossl_cbs_strndup(&srp_I, &s->srp_ctx.login)) {
+    if (!CBS_strdup(&srp_I, &s->srp_ctx.login)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }
@@ -1413,7 +1413,7 @@ int tls_parse_ctos_psk(SSL_CONNECTION *s, CBS *pkt, unsigned int context,
             unsigned char pskdata[PSK_MAX_PSK_LEN];
             unsigned int pskdatalen;
 
-            if (!ossl_cbs_strndup(&identity, &pskid)) {
+            if (!CBS_strdup(&identity, &pskid)) {
                 SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
                 return 0;
             }

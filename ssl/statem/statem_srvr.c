@@ -3488,7 +3488,7 @@ static int tls_process_cke_psk_preamble(SSL_CONNECTION *s, CBS *pkt)
         return 0;
     }
 
-    if (!ossl_cbs_strndup(&psk_identity, &s->session->psk_identity)) {
+    if (!CBS_strdup(&psk_identity, &s->session->psk_identity)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
         return 0;
     }

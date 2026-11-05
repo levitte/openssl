@@ -2229,19 +2229,6 @@ typedef struct dtls_sent_msg_st {
 
 int dtls_any_sent_messages_are_missing_acknowledge(SSL_CONNECTION *s);
 
-/*
- * PACKET-to-CBS gap filler: PACKET_strndup() has no CBS equivalent in this
- * import (BoringSSL calls it CBS_strdup()).  PACKET_memdup(), on the other
- * hand, is an exact match for CBS_stow().
- */
-__owur static ossl_inline int ossl_cbs_strndup(const CBS *cbs, char **data)
-{
-    OPENSSL_free(*data);
-
-    *data = OPENSSL_strndup((const char *)CBS_data(cbs), CBS_len(cbs));
-    return (*data != NULL);
-}
-
 static ossl_inline int dtls_msg_needs_ack(int sentbyserver, unsigned char msgtype)
 {
     switch (msgtype) {

@@ -225,6 +225,32 @@ err:
     return ret;
 }
 
+static int test_cbs_strdup(void)
+{
+    static const uint8_t data[] = { 'f', 'o', 'o' };
+    CBS cbs;
+    char *ptr = NULL;
+    int ret = 0;
+
+    CBS_init(&cbs, data, sizeof(data));
+    if (!TEST_true(CBS_strdup(&cbs, &ptr))
+        || !TEST_str_eq(ptr, "foo"))
+        goto err;
+    if (!TEST_true(CBS_skip(&cbs, 1))
+        || !TEST_true(CBS_strdup(&cbs, &ptr))
+        || !TEST_str_eq(ptr, "oo"))
+        goto err;
+    CBS_init(&cbs, NULL, 0);
+    if (!TEST_true(CBS_strdup(&cbs, &ptr))
+        || !TEST_str_eq(ptr, ""))
+        goto err;
+
+    ret = 1;
+err:
+    OPENSSL_free(ptr);
+    return ret;
+}
+
 static int test_cbs_get_asn1(void)
 {
     static const uint8_t seq[] = { 0x30, 2, 1, 2 };
@@ -407,6 +433,7 @@ int setup_tests(void)
     ADD_TEST(test_cbs_offset_dup);
     ADD_TEST(test_cbs_mem_equal_zero_byte);
     ADD_TEST(test_cbs_stow);
+    ADD_TEST(test_cbs_strdup);
     ADD_TEST(test_cbs_get_asn1);
     ADD_TEST(test_cbs_get_any_asn1_element);
     ADD_TEST(test_cbs_get_optional_asn1);

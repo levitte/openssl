@@ -86,6 +86,16 @@ int CBS_stow(const CBS *cbs, uint8_t **out_ptr, size_t *out_len)
     return 1;
 }
 
+int CBS_strdup(const CBS *cbs, char **out_ptr)
+{
+    OPENSSL_free(*out_ptr);
+    /* CRYPTO_strndup() rejects NULL data; BoringSSL's does not. */
+    *out_ptr = OPENSSL_strndup(cbs->len == 0 ? ""
+                                             : (const char *)cbs->data,
+        cbs->len);
+    return (*out_ptr != NULL);
+}
+
 int CBS_mem_equal(const CBS *cbs, const uint8_t *data, size_t len)
 {
     if (cbs->len != len)

@@ -107,6 +107,18 @@ size_t CBS_offset(const CBS *cbs);
 int CBS_stow(const CBS *cbs, uint8_t **out_ptr, size_t *out_len);
 
 /**
+ * @brief CBS_strdup copies the current contents of cbs into a newly
+ * allocated, NUL-terminated string stored in *out_ptr. If *out_ptr is not
+ * NULL, the contents are freed with OPENSSL_free. On success, *out_ptr
+ * should be freed with OPENSSL_free. If cbs is empty, *out_ptr will be an
+ * empty string.
+ * @param cbs the CBS
+ * @param out_ptr the pointer to set
+ * @returns one on success and zero on allocation failure
+ */
+int CBS_strdup(const CBS *cbs, char **out_ptr);
+
+/**
  * @brief CBS_skip advances cbs by len bytes.
  * @param cbs the CBS
  * @param len the number of bytes to advance

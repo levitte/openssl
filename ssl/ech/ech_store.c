@@ -426,7 +426,7 @@ static int ech_decode_one_entry(OSSL_ECHSTORE_ENTRY **rent, CBS *pkt,
     }
     if (CBS_contains_zero_byte(&public_name_pkt)
         || CBS_len(&public_name_pkt) < TLSEXT_MINLEN_host_name
-        || !ossl_cbs_strndup(&public_name_pkt, &ee->public_name)) {
+        || !CBS_strdup(&public_name_pkt, &ee->public_name)) {
         ERR_raise(ERR_LIB_SSL, SSL_R_ECH_DECODE_ERROR);
         goto err;
     }
