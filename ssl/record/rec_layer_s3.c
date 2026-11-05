@@ -20,7 +20,7 @@
 #include <openssl/rand.h>
 #include <openssl/core_names.h>
 #include "record_local.h"
-#include "internal/packet.h"
+#include "internal/bytestring.h"
 #include "internal/comp.h"
 #include "internal/ssl_unwrap.h"
 
@@ -854,14 +854,14 @@ start:
      */
 
     if (rr->type == SSL3_RT_ALERT) {
-        unsigned int alert_level, alert_descr;
+        uint8_t alert_level, alert_descr;
         const unsigned char *alert_bytes = rr->data + rr->off;
-        PACKET alert;
+        CBS alert;
 
-        if (!PACKET_buf_init(&alert, alert_bytes, rr->length)
-            || !PACKET_get_1(&alert, &alert_level)
-            || !PACKET_get_1(&alert, &alert_descr)
-            || PACKET_remaining(&alert) != 0) {
+        CBS_init(&alert, alert_bytes, rr->length);
+        if (!CBS_get_u8(&alert, &alert_level)
+            || !CBS_get_u8(&alert, &alert_descr)
+            || CBS_len(&alert) != 0) {
             SSLfatal(s, SSL_AD_UNEXPECTED_MESSAGE, SSL_R_INVALID_ALERT);
             return -1;
         }

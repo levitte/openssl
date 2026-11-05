@@ -16,6 +16,7 @@
 #include <openssl/ssl.h>
 #include "internal/e_os.h"
 #include "internal/packet.h"
+#include "internal/bytestring.h"
 #include "internal/ssl3_cbc.h"
 #include "internal/dtls_record_rx.h"
 #include "../../ssl_local.h"
@@ -577,11 +578,11 @@ int tls_get_more_records(OSSL_RECORD_LAYER *rl)
     TLS_BUFFER *rbuf;
     unsigned char *p;
     unsigned char md[EVP_MAX_MD_SIZE];
-    unsigned int version;
+    uint16_t version;
     size_t mac_size = 0;
     int imac_size;
     size_t num_recs = 0, max_recs, j;
-    PACKET pkt;
+    CBS pkt;
     SSL_MAC_BUF *macbufs = NULL;
     int ret = OSSL_RECORD_RETURN_FATAL;
 
@@ -604,7 +605,8 @@ int tls_get_more_records(OSSL_RECORD_LAYER *rl)
 
         /* check if we have the header */
         if ((rl->rstate != SSL_ST_READ_BODY) || (rl->packet_length < SSL3_RT_HEADER_LENGTH)) {
-            unsigned int type;
+            uint8_t type;
+            uint16_t len16;
 
             rret = rl->funcs->read_n(rl, SSL3_RT_HEADER_LENGTH,
                 TLS_BUFFER_get_len(rbuf), 0,
@@ -616,20 +618,18 @@ int tls_get_more_records(OSSL_RECORD_LAYER *rl)
             rl->rstate = SSL_ST_READ_BODY;
 
             p = rl->packet;
-            if (!PACKET_buf_init(&pkt, p, rl->packet_length)) {
-                RLAYERfatal(rl, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-                return OSSL_RECORD_RETURN_FATAL;
-            }
+            CBS_init(&pkt, p, rl->packet_length);
 
             /* Pull apart the header into the TLS_RL_RECORD */
-            if (!PACKET_get_1(&pkt, &type)
-                || !PACKET_get_net_2(&pkt, &version)
-                || !PACKET_get_net_2_len(&pkt, &thisrr->length)) {
+            if (!CBS_get_u8(&pkt, &type)
+                || !CBS_get_u16(&pkt, &version)
+                || !CBS_get_u16(&pkt, &len16)) {
                 if (rl->msg_callback != NULL)
                     rl->msg_callback(0, 0, SSL3_RT_HEADER, p, SSL3_RT_HEADER_LENGTH, rl->cbarg);
                 RLAYERfatal(rl, SSL_AD_DECODE_ERROR, ERR_R_INTERNAL_ERROR);
                 return OSSL_RECORD_RETURN_FATAL;
             }
+            thisrr->length = len16;
             thisrr->type = type;
             thisrr->rec_version = version;
 

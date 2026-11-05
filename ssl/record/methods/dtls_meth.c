@@ -12,6 +12,7 @@
 #include "../record_local.h"
 #include "recmethod_local.h"
 #include "internal/safe_math.h"
+#include "internal/bytestring.h"
 
 OSSL_SAFE_MATH_UNSIGNED(uint64_t, uint64_t)
 
@@ -523,8 +524,10 @@ again:
     /* check if we have the header */
     if (rl->rstate != SSL_ST_READ_BODY
         || rl->packet_length < DTLS1_RT_HEADER_LENGTH) {
-        PACKET dtlsrecord;
-        unsigned int record_type, record_version, epoch, length;
+        CBS dtlsrecord;
+        uint8_t record_type;
+        uint16_t record_version, epoch, len16 = 0;
+        unsigned int length;
         uint64_t epoch64;
 
         /*
@@ -552,8 +555,8 @@ again:
 
         rl->rstate = SSL_ST_READ_BODY;
 
-        if (!PACKET_buf_init(&dtlsrecord, rl->packet, rl->packet_length)
-            || !PACKET_get_1(&dtlsrecord, &record_type)) {
+        CBS_init(&dtlsrecord, rl->packet, rl->packet_length);
+        if (!CBS_get_u8(&dtlsrecord, &record_type)) {
             rl->packet_length = 0;
             goto again;
         }
@@ -607,19 +610,21 @@ again:
                  * Naive approach? We expect sequence number to be filled already
                  * and then override the last bytes of the sequence number.
                  */
-                || !PACKET_copy_bytes(&dtlsrecord, recseqnum + recseqnumoffs, recseqnumlen)
+                || !CBS_copy_bytes(&dtlsrecord, recseqnum + recseqnumoffs, recseqnumlen)
                 /*
                  * rfc9147:
                  * The length field MAY be omitted by clearing the L bit, which means
                  * that the record consumes the entire rest of the datagram in the
                  * lower level transport
                  */
-                || (lbitisset ? !PACKET_get_net_2(&dtlsrecord, &length)
+                || (lbitisset ? !CBS_get_u16(&dtlsrecord, &len16)
                               : (length = (unsigned int)TLS_BUFFER_get_len(&rl->rbuf)) > 0)) {
                 rr->length = 0;
                 rl->packet_length = 0;
                 goto again;
             }
+            if (lbitisset)
+                length = len16;
 
             /*
              * RFC 9147 Section 4.2.2 Says that after the handshake phase (epoch 3+)
@@ -653,20 +658,21 @@ again:
                 }
             }
         } else {
-            if (!PACKET_get_net_2(&dtlsrecord, &record_version)
-                || !PACKET_get_net_2(&dtlsrecord, &epoch)
-                || !PACKET_copy_bytes(&dtlsrecord, recseqnum, 6)
-                || !PACKET_get_net_2(&dtlsrecord, &length)) {
+            if (!CBS_get_u16(&dtlsrecord, &record_version)
+                || !CBS_get_u16(&dtlsrecord, &epoch)
+                || !CBS_copy_bytes(&dtlsrecord, recseqnum, 6)
+                || !CBS_get_u16(&dtlsrecord, &len16)) {
                 rr->length = 0;
                 rl->packet_length = 0;
                 goto again;
             }
             epoch64 = epoch;
+            length = len16;
             recseqnumoffs = 0;
             recseqnumlen = 6;
         }
 
-        rechdrlen = PACKET_data(&dtlsrecord) - rl->packet;
+        rechdrlen = CBS_data(&dtlsrecord) - rl->packet;
         rr->rec_version = (int)record_version;
         rr->epoch = epoch64;
         rr->length = length;
