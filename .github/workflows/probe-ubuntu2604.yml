@@ -1,0 +1,29 @@
+name: probe-ubuntu2604
+on:
+  push:
+    branches: [probe-ubuntu2604-toolchain]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-26.04
+    steps:
+    - name: toolchain identity
+      run: |
+        echo "=== which gcc"; which gcc; ls -l /usr/bin/gcc
+        echo "=== gcc --version"; gcc --version
+        echo "=== gcc -v"; gcc -v 2>&1 | tail -5
+        echo "=== dpkg"; dpkg -l | grep -E '^ii\s+(gcc|cpp|libgcc|g\+\+)' || true
+        echo "=== apt-cache policy"; apt-cache policy gcc gcc-15 cpp-15 libgcc-15-dev 2>/dev/null | head -40
+    - uses: actions/checkout@v6
+      with:
+        persist-credentials: false
+    - name: config (same as basic_gcc)
+      run: CC=gcc ./config --strict-warnings --banner=Configured enable-demos enable-h3demo enable-ec_explicit_curves enable-sslkeylog enable-fips enable-quic enable-lms enable-unit-tests > /tmp/config.log 2>&1 && grep -m1 "CFLAGS" /tmp/config.log
+    - name: make generated files
+      run: make -s build_all_generated
+    - name: compile kt_prov.c
+      run: make providers/implementations/digests/libdefault-lib-kt_prov.o V=1
