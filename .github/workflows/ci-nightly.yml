@@ -216,7 +216,7 @@ jobs:
       RANLIB: ${{ matrix.platform.target }}-w64-mingw32-ranlib
       RC: ${{ matrix.platform.target }}-w64-mingw32-windres
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         persist-credentials: false
     - name: install MINGW64

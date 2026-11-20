@@ -80,7 +80,7 @@ jobs:
       run: |
         sudo cat /proc/sys/vm/mmap_rnd_bits
         sudo sysctl -w vm.mmap_rnd_bits=28
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         persist-credentials: false
         ref: ${{ github.event.inputs.head_sha || github.sha }}
@@ -107,13 +107,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: checkout openssl
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         persist-credentials: false
         ref: ${{ github.event.inputs.head_sha || github.sha }}
     # Third-party, pinned to a release tag: not repointed at the pull request's choice.
     - name: checkout jitter
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: smuellerDD/jitterentropy-library
         ref: v3.5.0
