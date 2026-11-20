@@ -58,7 +58,7 @@ jobs:
           inputs.pr == '' && inputs.head_sha == '' && inputs.check_run_id == ''))
       runs-on: ubuntu-latest
       steps:
-        - uses: actions/checkout@v6
+        - uses: actions/checkout@v7
           with:
             persist-credentials: false
             ref: ${{ github.event.inputs.head_sha || github.sha }}
