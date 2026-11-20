@@ -421,7 +421,7 @@ jobs:
       run: .github/workflows/make-test
     - name: save artifacts
       if: success() || failure()
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: "ci@linux-aarch64-graviton4-${{ matrix.name }}"
         path: artifacts.tar.gz
@@ -468,7 +468,7 @@ jobs:
           ".github/workflows/make-test"
     - name: save artifacts
       if: success() || failure()
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: "ci@linux-x86"
         path: artifacts.tar.gz
