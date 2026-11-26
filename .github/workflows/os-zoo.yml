@@ -74,7 +74,7 @@ jobs:
     - name: install packages
       run: apk --no-cache add build-base perl linux-headers ${{ matrix.cc }}
     - &checkout
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         persist-credentials: false
         ref: ${{ github.event.inputs.head_sha || github.sha }}
@@ -495,7 +495,7 @@ jobs:
       run:
         shell: sparc-ci run {0}
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         persist-credentials: false
         ref: ${{ github.event.inputs.head_sha || github.sha }}
