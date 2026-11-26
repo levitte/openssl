@@ -176,7 +176,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - &checkout
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         persist-credentials: false
         ref: ${{ github.event.inputs.head_sha || github.sha }}
@@ -247,7 +247,7 @@ jobs:
         sudo apt-get -yq --no-install-suggests --no-install-recommends --allow-unauthenticated --allow-downgrades --allow-remove-essential --allow-change-held-packages install brotli libbrotli1 libbrotli-dev
     - &checkout_openssl
       name: checkout openssl
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         persist-credentials: false
         ref: ${{ github.event.inputs.head_sha || github.sha }}
